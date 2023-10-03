@@ -61,7 +61,7 @@ server <- function(input, output, session) {
                       numItems = rv$numItems)
     
     if(rv$inital) {
-      # erster schueler hinzugefügt 
+      # erster schueler hinzugefügt
       rv$inital <- FALSE
     }
     
