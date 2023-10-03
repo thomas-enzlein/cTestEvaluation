@@ -9,7 +9,6 @@ library(plotly, warn.conflicts = FALSE, quietly = TRUE, verbose = FALSE)
 library(readr, warn.conflicts = FALSE, quietly = TRUE, verbose = FALSE)
 library(export, warn.conflicts = FALSE, quietly = TRUE, verbose = FALSE)
 library(shinyhelper, warn.conflicts = FALSE, quietly = TRUE, verbose = FALSE)
-library(keys, warn.conflicts = FALSE, quietly = TRUE, verbose = FALSE)
 
 # Farben und Levels für Kat. 
 cols <-c('darkgreen', 'darkgreen',

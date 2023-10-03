@@ -34,14 +34,21 @@ Dies ist eine **Schnell-Start Anleitung** mit den wichtigesten Schritten. Weiter
 
 ### Übersicht über die Funktionen
 
-Auf der linken Seite befindet sich ein Menüband (siehe Abbildung).
-
 ![Linkes Menüband](images/sidebar.png){style="float:left;margin-left:5px;margin-right:25px" width="150"}
+
+Auf der linken Seite befindet sich ein Menüband (siehe Abbildung).
 
 1.  **Anleitung**: Diese Anleitung.
 2.  **Auswertung**: Hier können die **Schülerdaten eingegeben**, die Ergebnisse als **Tabelle betrachtet** und **gespeichert** werden.
 3.  **Statistik**: Hier können **Mittelwert und Median** für `R/F-Wert` und `WE-Wert` eingesehen werden. Weiterhin können die Daten hier als Histogramm **graphisch dargestellt** werden.
-4.  **Erweitert**: Hier finden sich erweiterte Funktionen für fortgeschrittene Benutzer. Aktuell können hier gespeicherte **Daten geladen** werden.  
+4.  **Erweitert**: Hier finden sich erweiterte Funktionen für fortgeschrittene Benutzer. Aktuell können hier gespeicherte **Daten geladen** werden.
+
+&nbsp;
+&nbsp;
+&nbsp;
+&nbsp;
+&nbsp;
+&nbsp;
   
 #### Auswertung
 
