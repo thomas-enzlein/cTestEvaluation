@@ -20,7 +20,7 @@ server <- function(input, output, session) {
                        numItems = 80,
                        inital = TRUE
   )
-  #### Anzahl der Testitems aendern
+  #### Anzahl der Testitems aendern 
   observeEvent(input$numItems, {
     rv$numItems <- as.numeric(input$numItems)
   })
