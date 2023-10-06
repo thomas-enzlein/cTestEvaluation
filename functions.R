@@ -208,7 +208,22 @@ addEntry <- function(df, name, rf, we, numItems) {
   return(df)
 }
 
-# angepasste export::table2doc funktion
+setDocBackgroundColor <- function(tab, df, colors, levels) {
+  
+  stopifnot(length(colors) == length(levels))
+  for (i in seq_along(levels)) {
+    lvl <- levels[i]
+    kat <- pull(df, "Kat.")
+    idx <- which(kat == lvl)
+    tab <- flextable::bg(x = tab, 
+                         j = 6, # Kat. column
+                         i = idx, 
+                         bg = colors[i])
+  }
+  return(tab)
+}
+
+# angepasste export::table2doc funktion, original see https://github.com/tomwenseleers/export, credit to Tom Wenseleers
 table2doc_ = function(x = NULL, file = "Rtable", append = FALSE, digits = 2, 
                          digitspvals = NULL, trim.pval = 1E-16, width = NULL, height = NULL, offx = 1, offy = 1, 
                          font = ifelse(Sys.info()["sysname"]=="Windows","Arial","Helvetica")[[1]], pointsize = 12, 
@@ -284,7 +299,7 @@ table2doc_ = function(x = NULL, file = "Rtable", append = FALSE, digits = 2,
   
   if(inherits(tab,"xtable")){
     tab <- flextable::as_flextable(tab, include.rownames = add.rownames, rowname_col = ".")
-    tab <- flextable::width(tab, width=c(2, 0.5, 0.5, 0.5, 0.5, 0.5, 3))
+    tab <- flextable::width(tab, width=c(1, 0.5, 0.5, 0.5, 0.5, 0.5, 4))
     tab <- flextable::height(tab, height=cell.height)
   } else {
     if(add.rownames) x <- cbind(" " = rownames(x), x)
@@ -301,7 +316,7 @@ table2doc_ = function(x = NULL, file = "Rtable", append = FALSE, digits = 2,
   tab <- flextable::bold(tab, part = "header") # bold header
   tab <- flextable::fontsize(tab, part = "all", size = pointsize) 
   tab <- flextable::font(tab, part = "all", fontname = font)
-  flextable::bg()
+  #tab <- setDocBackgroundColor(tab = tab, df = x, colors = cols, levels = lvls)
   
   doc <- flextable::body_add_flextable(doc, value = tab)
   
