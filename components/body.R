@@ -2,7 +2,7 @@ body <- dashboardBody(
   tabItems(
     tabItem(tabName = "anleitung",
             includeMarkdown("helpfiles/anleitung.md")
-            ),
+    ),
     
     ### Auswertungs Tab ####
     tabItem(
@@ -24,22 +24,36 @@ body <- dashboardBody(
                    textInput(inputId = "schuelerName", label = "Name")
             ),
             column(width = 3,
-                   createInputField("rfWert", "R/F-Wert")
+                   createInputField("weWert", "WE-Wert")
             ),
             column(width = 3,
-                   createInputField("weWert", "WE-Wert")
+                   createInputField("rfWert", "R/F-Wert")
             )
           ),
           fluidRow(
             column(width = 6,
                    createActionButton("btHinzufuegen", "hinzufügen", icon("check"))
             ),
-            column(width = 3,
+            column(width = 2,
                    selectInput(inputId = "numItems", 
                                label = "Anzahl Test-Items", 
                                choices = c(20, 40, 60, 80, 100), 
                                selected = 40) %>%
                      helper(content = "numItems")
+            ),
+            column(width = 2,
+                   numericInput(inputId = "klassenstufe", 
+                                label = "Klassenstufe", 
+                                value = NA, 
+                                min = 5, 
+                                max = 13,
+                                step = 1) 
+            ),
+            column(width = 2,
+                   selectInput(inputId = "klassenBuchstabe", 
+                               label = "Klasse", 
+                               choices = c("Bitte wählen" = "", letters[1:8]), 
+                               selected = NULL) 
             )
           ),
           fluidRow(

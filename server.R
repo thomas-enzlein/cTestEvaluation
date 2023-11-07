@@ -10,10 +10,10 @@ server <- function(input, output, session) {
   
   #### App-Object ####
   rv <- reactiveValues(df = tibble("Name" = character(0),
-                                   "R/F-Wert" = numeric(0),
-                                   "R/F-%" = numeric(0),
                                    "WE-Wert" = numeric(0),
                                    "WE-%" = numeric(0),
+                                   "R/F-Wert" = numeric(0),
+                                   "R/F-%" = numeric(0),
                                    "Kat." = factor(character(0), 
                                                    levels = lvls),
                                    "Empfehlung" = character(0)),
@@ -45,7 +45,9 @@ server <- function(input, output, session) {
     error <- checkInputErrors(inputName = input$schuelerName, 
                               inputRf = input$rfWert, 
                               inputWe = input$weWert, 
-                              numItems = rv$numItems)
+                              numItems = rv$numItems,
+                              klasse = composeClass(klassenstufe = input$klassenstufe, 
+                                                    klassenBuchstabe = input$klassenBuchstabe))
     
     # Falls Fehler, Ausgabe als Text in der App
     if(!is.null(error)) {
