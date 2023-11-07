@@ -200,7 +200,7 @@ createActionButton <- function(inputId, label, icon) {
                icon = icon)
 }
 
-addEntry <- function(df, klasse, name, rf, we, numItems) {
+addEntry <- function(df, name, klasse, rf, we, numItems) {
   rfPerc <- round(rf/numItems*100,1)
   wePerc <- round(we/numItems*100,1)
   
