@@ -2,7 +2,7 @@ body <- dashboardBody(
   tabItems(
     tabItem(tabName = "anleitung",
             includeMarkdown("helpfiles/anleitung.md")
-    ),
+            ),
     
     ### Auswertungs Tab ####
     tabItem(
@@ -37,23 +37,19 @@ body <- dashboardBody(
             column(width = 2,
                    selectInput(inputId = "numItems", 
                                label = "Anzahl Test-Items", 
-                               choices = c(20, 40, 60, 80, 100), 
+                               choices = c(20, 26, 40, 60, 80, 100), 
                                selected = 40) %>%
                      helper(content = "numItems")
             ),
             column(width = 2,
-                   numericInput(inputId = "klassenstufe", 
-                                label = "Klassenstufe", 
-                                value = NA, 
-                                min = 5, 
-                                max = 13,
-                                step = 1) 
+                   selectInput(inputId = "klassenstufe", 
+                               label = "Klassenstufe", 
+                               choices = c("Bitte wählen" = "", 5:13)) 
             ),
             column(width = 2,
-                   selectInput(inputId = "klassenBuchstabe", 
+                   selectInput(inputId = "klBuchstabe", 
                                label = "Klasse", 
-                               choices = c("Bitte wählen" = "", letters[1:8]), 
-                               selected = NULL) 
+                               choices = c("Bitte wählen" = "", letters[1:8])) 
             )
           ),
           fluidRow(

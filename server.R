@@ -10,6 +10,7 @@ server <- function(input, output, session) {
   
   #### App-Object ####
   rv <- reactiveValues(df = tibble("Name" = character(0),
+                                   "Klasse" = character(0),
                                    "WE-Wert" = numeric(0),
                                    "WE-%" = numeric(0),
                                    "R/F-Wert" = numeric(0),
@@ -46,8 +47,7 @@ server <- function(input, output, session) {
                               inputRf = input$rfWert, 
                               inputWe = input$weWert, 
                               numItems = rv$numItems,
-                              klasse = composeClass(klassenstufe = input$klassenstufe, 
-                                                    klassenBuchstabe = input$klassenBuchstabe))
+                              klasse = composeClass(input$klassenstufe, input$klBuchstabe))
     
     # Falls Fehler, Ausgabe als Text in der App
     if(!is.null(error)) {
@@ -58,6 +58,7 @@ server <- function(input, output, session) {
     # Eingabe korrekt, fuege Schueler hinzu
     rv$df <- addEntry(df = rv$df, 
                       name = input$schuelerName, 
+                      klasse = composeClass(input$klassenstufe, input$klBuchstabe),
                       rf = input$rfWert, 
                       we = input$weWert, 
                       numItems = rv$numItems)
@@ -137,6 +138,7 @@ server <- function(input, output, session) {
     validate(need(ext == "tsv", "Bitte tsv Datei auswählen"))
     
     new_df <- read_tsv(file$datapath, col_types = list(col_character(),
+                                                       col_character(),
                                                        col_number(),
                                                        col_number(),
                                                        col_number(),

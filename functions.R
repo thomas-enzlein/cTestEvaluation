@@ -1,8 +1,9 @@
-composeClass <- function(stufe, klasse) {
-  if(nchar(klasse) == 0 | is.na(stufe)) {
+composeClass <- function(klassenstufe, klassenBuchstabe) {
+  if(is.na(klassenstufe) | nchar(klassenBuchstabe) == 0) {
     return(NULL)
   }
-  return(paste0(stufe, klasse))
+  
+  return(paste0(klassenstufe, klassenBuchstabe))
 }
 
 checkCompleteInput <- function(rf, we) {
@@ -44,23 +45,23 @@ checkInputErrors <- function(inputName, inputRf, inputWe, numItems, klasse) {
   if(nchar(str_trim(inputName)) == 0) {
     return("Bitte Namen eingeben.")
   }
-  
+
   if(checkCompleteInput(rf = inputRf, we = inputWe)) {
     return("Bitte beide Werte angeben oder keinen (Schüler hat nicht teilgenommen).")
   }
-  
+
   if(checkRfWe(rf = inputRf, we = inputWe)) {
     return("R/F-Wert kann nicht größer als WE-Wert sein.")
   }
-  
+
   if(checkMorePointsThenNumItems(rf = inputRf, we = inputWe, numItems = numItems)) {
     return("R/F- bzw WE-Wert kann nicht höher als Anzahl Test-Items sein.")
   }
-  
+
   if(is.null(klasse)) {
     return("Bitte Klassenstufe und Klasse angeben.")
   }
-  
+
   return(NULL)
 }
 
