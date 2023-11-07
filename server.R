@@ -119,7 +119,7 @@ server <- function(input, output, session) {
                height = 11.7,
                pointsize = 7)
     
-    table2excel(rv$df, 
+    table2spreadsheet_(rv$df, 
                 file = createFilePath(fn, ""), 
                 sheetName = "C-Test", 
                 digits = 1)

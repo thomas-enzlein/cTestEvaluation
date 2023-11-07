@@ -24,4 +24,6 @@ lvls <- c("1A", "1B",
           "5C", "5C*", "5D", "5E")
 
 source("functions.R")
+source("table2doc_.R")
+source("table2spreadsheet_.R")
 
