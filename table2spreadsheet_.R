@@ -69,7 +69,7 @@ table2spreadsheet_ = function(x = NULL, file = "Rtable", type = c("XLS"), append
   }
   openxlsx::addWorksheet(doc, sheetName = sheetName)
   openxlsx::writeData(doc, sheet = sheetName, x = tab, colNames = TRUE, rowNames = add.rownames, 
-            headerStyle = createStyle(textDecoration="bold"), withFilter = FALSE)
+            headerStyle = openxlsx::createStyle(textDecoration="bold"), withFilter = FALSE)
   sheetStyle <- openxlsx::createStyle(...)
   openxlsx::addStyle(doc, sheet = sheetName, style = sheetStyle, 
            rows = rep(2:(nrow(tab)+1), ncol(tab)), 

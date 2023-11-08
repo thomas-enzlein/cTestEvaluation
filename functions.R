@@ -150,12 +150,15 @@ checkColumnNames <- function(df1, df2) {
 
 # Histogram erstellen
 createHistogram <- function(df, x, fill, xlab, bins = 30) {
+  df <- df %>%
+    mutate(Name = paste0(Name, ", ", Klasse))
+  
   p <- ggplot(df, aes_string(x = x, text = "Name", fill = fill)) +
     geom_histogram(bins = bins, col = "black", show.legend = FALSE) +
     scale_fill_manual(values =  cols, limits = lvls) +
     labs(x = xlab,
          y = "Anzahl") +
-    theme(legend.position='none')
+    theme(legend.position='none') 
   
   return(p)
 }
@@ -219,5 +222,88 @@ addEntry <- function(df, name, klasse, rf, we, numItems) {
   df <- bind_rows(df, new)
   
   return(df)
+}
+
+saveData <- function(df) {
+  fn <- paste0("C-Test_Auswertung_", Sys.Date())
+  
+  if("Klasse" %in% colnames(df)) {
+    kl <- paste0(unique(df$Klasse), collapse = "_")
+    fn <- paste0(fn, "_", kl)
+  }
+  
+  write_tsv(df, 
+            file = createFilePath(fn, "tsv"))
+  table2doc_(df, 
+             file = createFilePath(fn, ""), 
+             digits = 1, 
+             width = 8.3,
+             height = 11.7,
+             pointsize = 7)
+  
+  table2spreadsheet_(df, 
+                     file = createFilePath(fn, ""), 
+                     sheetName = "C-Test", 
+                     digits = 1)
+  
+  msgs <- paste0("Daten gespeichert unter ", createFilePath(NULL, ""))
+  
+  return(msgs)
+}
+
+checkInputFile <- function(inputFile) {
+  req(inputFile)
+  ext <- tools::file_ext(inputFile$datapath)
+  
+  validate(need(ext == "tsv", "Bitte tsv Datei auswählen"))
+  return(inputFile$datapath)
+}
+
+loadData <- function(inputFile) {
+  raw <- read_tsv(checkInputFile(inputFile), show_col_types = FALSE)
+  
+  if(!"Klasse" %in% colnames(raw)) {
+    message("Old .tsv file detected, converting to new format.")
+    new_df <- raw %>%
+      mutate(Klasse = "") %>%
+      select(Name,
+             Klasse, 
+             `WE-Wert`,
+             `WE-%`,
+             `R/F-Wert`,
+             `R/F-%`,
+             `Kat.`,
+             Empfehlung) %>%
+      mutate(Name = as.character(Name),
+             Klasse = as.character(Klasse),
+             `WE-Wert` = as.numeric(`WE-Wert`),
+             `WE-%` = as.numeric(`WE-%`),
+             `R/F-Wert` = as.numeric(`R/F-Wert`),
+             `R/F-%` = as.numeric(`R/F-%`),
+             `Kat.` = factor(`Kat.`, levels = lvls),
+             Empfehlung = as.character(Empfehlung))
+    return(new_df)
+  }
+  
+  new_df <- read_tsv(
+    checkInputFile(inputFile), 
+    col_types = list(col_character(),
+                     col_character(),
+                     col_number(),
+                     col_number(),
+                     col_number(),
+                     col_number(),
+                     col_factor(levels = lvls),
+                     col_character()), 
+    col_select = c(Name,
+                   Klasse, 
+                   `WE-Wert`,
+                   `WE-%`,
+                   `R/F-Wert`,
+                   `R/F-%`,
+                   `Kat.`,
+                   Empfehlung))
+  
+  return(new_df)
 }
 

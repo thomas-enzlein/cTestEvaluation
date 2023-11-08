@@ -108,46 +108,22 @@ server <- function(input, output, session) {
       return()
     }
     
-    fn <- paste0("C-Test_Auswertung_", Sys.Date())
-
-    write_tsv(rv$df, 
-              file = createFilePath(fn, "tsv"))
-    table2doc_(rv$df, 
-               file = createFilePath(fn, ""), 
-               digits = 1, 
-               width = 8.3,
-               height = 11.7,
-               pointsize = 7)
+    msgs <- saveData(rv$df)
     
-    table2spreadsheet_(rv$df, 
-                file = createFilePath(fn, ""), 
-                sheetName = "C-Test", 
-                digits = 1)
-    
-    msgs <- paste0("Daten gespeichert unter ", createFilePath(NULL, ""))
     output$text <-  renderText(msgs)
     utils::browseURL(createFilePath(NULL, ""))
   })
   
   #### Laden Button #####
   observeEvent(input$input_tsv, {
-    file <- input$input_tsv
-    req(file)
-    ext <- tools::file_ext(file$datapath)
     
-    validate(need(ext == "tsv", "Bitte tsv Datei auswählen"))
+    new_df <- loadData(input$input_tsv)
     
-    new_df <- read_tsv(file$datapath, col_types = list(col_character(),
-                                                       col_character(),
-                                                       col_number(),
-                                                       col_number(),
-                                                       col_number(),
-                                                       col_number(),
-                                                       col_factor(levels = lvls),
-                                                       col_character()))
-    
-    if(!checkColumnNames(new_df, rv$df)) {
-      cat("Fehler, Spaltennamen stimmen nicht.")
+    if(!checkColumnNames(rv$df, new_df)) {
+      msgs <- paste0("Fehler, Spaltennamen stimmen nicht in ", 
+                     checkInputFile(input$input_tsv), "\n")
+      output$text <-  renderText(msgs)
+      message(msgs)
       return()
     }
     
@@ -191,7 +167,7 @@ server <- function(input, output, session) {
         mutate(diff = `WE-%` - `R/F-%`) %>%
         createHistogram(x = "`diff`", 
                         fill = "`Kat.`", 
-                        xlab = "Abweichung zwischen R/F- und WE-Wert in %")
+                        xlab = "Differenz R/F- und WE-Wert in %")
     }
     
     output$histWE <-  renderPlotly(ggplotly(pWE))
