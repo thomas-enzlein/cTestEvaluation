@@ -13,7 +13,7 @@ The C-Test Evaluation App is an application designed to assess and evaluate stud
 
 ## Getting Started
 
-Initiating the evaluation process is straightforward with our quick-start guide. The primary steps involve:
+Initiating the evaluation process is straightforward. The primary steps involve:
 
 - Adding Students: Navigate to the "Evaluation" section to enter each student's name along with their respective WE-value and R/F-value. After entering all relevant information, click "Add" to include the data into the overview table. Make sure that the number of test items is adjusted to match the number of completed gaps, and that the correct grade level and class are selected.
 - Overview Table: The summary table compiles all entries and provides a clear overview of the recommended actions for each student. To correct any mistaken entries, select the student and use the "Remove" button to delete them.
@@ -21,7 +21,7 @@ Initiating the evaluation process is straightforward with our quick-start guide.
 
 ## Features and Functionality
 
-The user interface is designed for efficiency and ease of use. A left-hand menu (illustrated within the app) allows users to access different features:
+A left-hand menu (illustrated within the app) allows users to access different features:
 
 - Instructions: A guide on how to utilize the app (in german).
 - Evaluation: Where to input and review student data, and save results.
