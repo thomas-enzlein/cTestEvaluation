@@ -52,7 +52,9 @@ server <- function(input, output, session) {
     # Falls Fehler, Ausgabe als Text in der App
     if(!is.null(error)) {
       cat(paste("Fehler:", error, "\n"))
-      output$text <-  renderText(paste("Fehler:", error, "\n"))
+      errText <- paste("Fehler:", error, "\n")
+      output$text <- renderText(errText)
+      showNotification(errText, type = "error")
       return()
     }
     # Eingabe korrekt, fuege Schueler hinzu
@@ -104,11 +106,13 @@ server <- function(input, output, session) {
   #### Speichern Button ####
   observeEvent(input$btSpeichern, {
     if(rv$inital) {
-      cat("Noch keine Schueler in der Tabelle. Nichts zu speichern.")
+      showNotification("Noch keine Schueler in der Tabelle. Nichts zu speichern.", type = "error")
       return()
     }
-    
+    showNotification("Speichere Daten. Bitte warten...")
     msgs <- saveData(rv$df)
+    
+    showNotification(msgs)
     
     output$text <-  renderText(msgs)
     utils::browseURL(createFilePath(NULL, ""))
@@ -122,6 +126,7 @@ server <- function(input, output, session) {
     if(!checkColumnNames(rv$df, new_df)) {
       msgs <- paste0("Fehler, Spaltennamen stimmen nicht in ", 
                      checkInputFile(input$input_tsv), "\n")
+      showNotification(msgs, type = "error")
       output$text <-  renderText(msgs)
       message(msgs)
       return()
@@ -137,6 +142,31 @@ server <- function(input, output, session) {
     rv$df <- 
       rv$df %>%
       bind_rows(new_df)
+  })
+  
+  #### Elternbrief #####
+  observeEvent(input$btBrief, {
+    
+    if(rv$inital) {
+      showNotification("Noch keine Schueler in der Tabelle. Kann keine Briefe erstellen.", type = "error")
+      return()
+    }
+    
+    if(!isTruthy(input$lehrername)) {
+      showNotification("Bitte Lehrername eingeben.", type = "error")
+      return()
+    }
+    
+    showNotification("Elternbriefe werden erstellen.\n Dies kann mehrere Minuten dauern.\nBitte warten...",
+                     duration = 10)
+    
+    cat("Lehrername:", input$lehrername, "sig:", input$signatur)
+    
+    create_letters(rv$df, 
+                   lehrername = input$lehrername, 
+                   signatur = input$signatur)
+    
+    utils::browseURL(createFilePath(NULL, ""))
   })
   
   #### Verteilungs plot ####

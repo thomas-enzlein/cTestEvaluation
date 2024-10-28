@@ -307,3 +307,63 @@ loadData <- function(inputFile) {
   return(new_df)
 }
 
+convert_kat_meaning <- function(kat, table_path = "elternbrief/ergebnisse.xlsx") {
+  df <- readxl::read_xlsx(table_path) %>%
+    janitor::clean_names()
+  
+  idx  <- which(df$kategorie == kat)
+  
+  return(paste0(df$kat_ext[idx], ": ", df$bedeutung[idx]))
+}
+
+compose_letter <- function(name, klasse, kat, lehrername, signatur, output = NULL) {
+  kat <- convert_kat_meaning(kat)
+  
+  rmarkdown::render("elternbrief/elternbrief.Rmd", output_file = output)
+}
+
+combine_letters <- function(rdocx, temp_path) {
+  rdocx <- 
+    rdocx %>% 
+    officer::body_add_break() %>% 
+    officer::body_add_docx(temp_path)  
+  
+  return(rdocx)
+}
+
+create_letters <- function(df, lehrername, signatur) {
+  
+  df <- janitor::clean_names(df)
+  
+  
+  for(i in 1:dim(df)[1]) {
+    message("Composing letter for ",  df$name[i], " ", i, "/", dim(df)[1])
+    compose_letter(name = df$name[i], 
+                   klasse = parse_number(df$klasse[i]), 
+                   kat = df$kat[i], 
+                   lehrername = lehrername, 
+                   signatur = signatur,
+                   output = "../tmp.docx")
+    
+    if(i == 1) {
+      rdocx <- officer::read_docx("tmp.docx")
+      next()
+    } 
+    rdocx <- combine_letters(rdocx, temp_path = "tmp.docx")
+  }
+  
+  fn <- paste0(createFilePath(NULL, ""),"/Elternbriefe_", Sys.Date())
+  
+  if("klasse" %in% colnames(df)) {
+    kl <- paste0(unique(df$klasse), collapse = "_")
+    fn <- paste0(fn, "_", kl)
+  }
+  cat("saved letters to", fn)
+  rdocx %>%
+    print(paste0(fn, ".docx"))
+  
+  fs::file_delete("tmp.docx")
+  
+}
+
+
