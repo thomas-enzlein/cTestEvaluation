@@ -322,7 +322,7 @@ compose_letter <- function(name, klasse, kat, lehrername, signatur, output = NUL
   rmarkdown::render("elternbrief/elternbrief.Rmd", output_file = output)
 }
 
-combine_letters <- function(rdocx, temp_path) {
+combine_letters <- function(rdocx, temp_path, out_path) {
   rdocx <- 
     rdocx %>% 
     officer::body_add_break() %>% 
@@ -335,21 +335,25 @@ create_letters <- function(df, lehrername, signatur) {
   
   df <- janitor::clean_names(df)
   
+  if(fs::file_exists("elternbrief/elternbrief.knit.md")) {
+    fs::file_delete("elternbrief/elternbrief.knit.md")
+  }
   
   for(i in 1:dim(df)[1]) {
+    tmp <- tempfile(fileext = ".docx")
     message("Composing letter for ",  df$name[i], " ", i, "/", dim(df)[1])
     compose_letter(name = df$name[i], 
                    klasse = parse_number(df$klasse[i]), 
                    kat = df$kat[i], 
                    lehrername = lehrername, 
                    signatur = signatur,
-                   output = "../tmp.docx")
+                   output = tmp)
     
     if(i == 1) {
-      rdocx <- officer::read_docx("tmp.docx")
+      rdocx <- officer::read_docx(tmp)
       next()
     } 
-    rdocx <- combine_letters(rdocx, temp_path = "tmp.docx")
+    rdocx <- combine_letters(rdocx, temp_path = tmp)
   }
   
   fn <- paste0(createFilePath(NULL, ""),"/Elternbriefe_", Sys.Date())
@@ -361,9 +365,6 @@ create_letters <- function(df, lehrername, signatur) {
   cat("saved letters to", fn)
   rdocx %>%
     print(paste0(fn, ".docx"))
-  
-  fs::file_delete("tmp.docx")
-  
 }
 
 
