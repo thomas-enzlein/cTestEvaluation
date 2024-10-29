@@ -1,14 +1,11 @@
-library(shiny, warn.conflicts = FALSE, quietly = TRUE, verbose = FALSE)
-library(shinydashboard, warn.conflicts = FALSE, quietly = TRUE, verbose = FALSE)
-library(shinyjs,warn.conflicts = FALSE, quietly = TRUE, verbose = FALSE)
-library(stringr, warn.conflicts = FALSE, quietly = TRUE, verbose = FALSE)
-library(dplyr, warn.conflicts = FALSE, quietly = TRUE, verbose = FALSE)
-library(ggplot2, warn.conflicts = FALSE, quietly = TRUE, verbose = FALSE)
-library(DT, warn.conflicts = FALSE, quietly = TRUE, verbose = FALSE)
-library(plotly, warn.conflicts = FALSE, quietly = TRUE, verbose = FALSE)
-library(readr, warn.conflicts = FALSE, quietly = TRUE, verbose = FALSE)
-library(export, warn.conflicts = FALSE, quietly = TRUE, verbose = FALSE)
-library(shinyhelper, warn.conflicts = FALSE, quietly = TRUE, verbose = FALSE)
+req <- readLines("req.txt")
+lapply(req, function(x) {
+  library(x, 
+          warn.conflicts = FALSE, 
+          quietly = TRUE, 
+          verbose = FALSE, 
+          character.only = TRUE)
+})
 
 # Farben und Levels für Kat. 
 cols <-c('darkgreen', 'darkgreen',

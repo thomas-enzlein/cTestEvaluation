@@ -2,7 +2,7 @@ body <- dashboardBody(
   tabItems(
     tabItem(tabName = "anleitung",
             includeMarkdown("helpfiles/anleitung.md")
-            ),
+    ),
     
     ### Auswertungs Tab ####
     tabItem(
@@ -38,7 +38,7 @@ body <- dashboardBody(
                    selectInput(inputId = "numItems", 
                                label = "Anzahl Test-Items", 
                                choices = c(20, 26, 40, 60, 80, 100), 
-                               selected = 40) %>%
+                               selected = 26) %>%
                      helper(content = "numItems")
             ),
             column(width = 2,
@@ -128,11 +128,30 @@ body <- dashboardBody(
     ),
     tabItem(
       tabName = "experten",
-      shiny::fileInput(inputId = "input_tsv", 
-                       label = "Daten laden (*.tsv)", 
-                       accept = ".tsv", 
-                       buttonLabel = "Durchsuchen",
-                       placeholder = "Nichts ausgewählt")
+      column(width = 4,
+        shiny::fileInput(inputId = "input_tsv", 
+                         label = "Daten laden (*.tsv)", 
+                         accept = ".tsv", 
+                         buttonLabel = "Durchsuchen",
+                         placeholder = "Nichts ausgewählt")
+      ),
+      column(width = 4,
+        fluidRow(
+          shiny::textInput(inputId = "lehrername", 
+                           label = "Name des Lehrers",
+                           placeholder = "Max Mustermann")  
+        ),
+        fluidRow(
+          shiny::textInput(inputId = "signatur", 
+                           label = "Signatur des Lehrers",
+                           placeholder = "Abteilungsleitung I")  
+        ),
+        fluidRow(
+          shiny::actionButton(inputId = "btBrief", 
+                              icon = icon("envelope"), 
+                              label = "Elternbriefe erstellen")  
+        )
+      )
     )
   )
 )
