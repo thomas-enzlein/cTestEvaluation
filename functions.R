@@ -91,22 +91,22 @@ getWElevel <- function(rfPerc, wePerc) {
 }
 
 getRecommendation <- function(kat) {
-  recommendations <- c("1A" = "Kein Handlungsbedarf für Rechtschreibung und Wortschatz",
-                       "2A" = "Kein Handlungsbedarf für Rechtschreibung und Wortschatz",
-                       "1B" = "Kein Handlungsbedarf, Rechtschreibung lässt sich durch Übung weiter verbessern",
-                       "2B" = "Kein Handlungsbedarf, Rechtschreibung lässt sich durch Übung weiter verbessern",
-                       "3C" = "Rechtschreibung deutlich schlechter als Wortschatz",
-                       "3C*" = "Rechtschreibung deutlich schlechter als Wortschatz (mögl. LRS)",
-                       "3D" = "Mögl. Handlungsbedarf im Bereich Lesen",
-                       "4C" = "Handlungsbedarf, Rechtschreibung deutlich schlechter als Wortschatz",
-                       "4C*" = "Handlungsbedarf, Rechtschreibung deutlich schlechter als Wortschatz (mögl. LRS)",
-                       "4D" = "Handlungsbedarf, sowohl schwacher Wortschatz als auch schwache Rechtschreibung",
-                       "4E" = "Handlungsbedarf besonders beim Wortschatz",
-                       "5C" = "hoher Handlungsbedarf, Rechtschreibung deutlich schlechter als Wortschatz",
-                       "5C*" = "hoher Handlungsbedarf, Rechtschreibung deutlich schlechter als Wortschatz (mögl. LRS)",
-                       "5D" = "hoher Handlungsbedarf, sowohl schwacher Wortschatz als auch schwache Rechtschreibung",
-                       "5E" = "hoher Handlungsbedarf besonders beim Wortschatz",
-                       "0"  =  "Hat nicht teilgenommen")
+  recommendations <- c("1A" = "Ergebnis oberhalb des Normbereichs. Kein Handlungsbedarf im Bereich Rechtschreibung und Wortschatz.",
+                       "2A" = "Ergebnis oberhalb des Normbereichs. Kein Handlungsbedarf im Bereich Rechtschreibung und Wortschatz.",
+                       "1B" = "Ergebnis oberhalb des Normbereichs. Kein Handlungsbedarf im Bereich Rechtschreibung und Wortschatz.",
+                       "2B" = "Ergebnis oberhalb des Normbereichs. Kein Handlungsbedarf im Bereich Rechtschreibung und Wortschatz.",
+                       "3C" = "Das Ergebnis liegt im Normbereich. Der Schüler würde von Rechtschreib-Übungen profitieren.",
+                       "3C*" = "Der Schüler sollte die Rechtschreibung verbessern (mögl. LRS).",
+                       "3D" = "Der Schüler sollte seinen Wortschatz verbessern (z.B. durch Lesen).",
+                       "4C" = "Der Schüler sollte die Rechtschreibung verbessern.",
+                       "4C*" = "Der Schüler sollte die Rechtschreibung verbessern (mögl. LRS).",
+                       "4D" = "Der Schüler sollte die Rechtschreibung verbessern und mehr lesen.",
+                       "4E" = "Der Schüler sollte die Rechtschreibung verbessern und mehr lesen.",
+                       "5C" = "Der Schüler sollte die Rechtschreibung verbessern.",
+                       "5C*" = "Der Schüler sollte die Rechtschreibung verbessern (mögl. LRS).",
+                       "5D" = "Der Schüler sollte die Rechtschreibung verbessern und mehr lesen.",
+                       "5E" = "Der Schüler sollte die Rechtschreibung verbessern und mehr lesen.",
+                       "0"  =  "Hat nicht teilgenommen.")
   
   return(recommendations[kat])
 }
