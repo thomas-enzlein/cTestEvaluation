@@ -354,6 +354,10 @@ create_letters <- function(df, lehrername, signatur) {
       next()
     } 
     rdocx <- combine_letters(rdocx, temp_path = tmp)
+    
+    if(fs::file_exists("elternbrief/elternbrief.knit.md")) {
+      fs::file_delete("elternbrief/elternbrief.knit.md")
+    }
   }
   
   fn <- paste0(createFilePath(NULL, ""),"/Elternbriefe_", Sys.Date())
