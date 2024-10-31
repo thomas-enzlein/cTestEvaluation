@@ -26,3 +26,4 @@ janitor
 export
 flextable
 pandoc
+qrcode

@@ -160,10 +160,10 @@ server <- function(input, output, session) {
     showNotification("Elternbriefe werden erstellen.\n Dies kann mehrere Minuten dauern.\nBitte warten...",
                      duration = 10)
     
-    
     create_letters(rv$df, 
                    lehrername = input$lehrername, 
-                   signatur = input$signatur)
+                   signatur = input$signatur,
+                   qrLink = input$qrLink)
     
     showNotification(paste0("Elternbriefe erstellen unter: ", createFilePath(NULL, "")),
                      duration = 5)

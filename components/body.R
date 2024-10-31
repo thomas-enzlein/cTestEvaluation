@@ -143,8 +143,13 @@ body <- dashboardBody(
         ),
         fluidRow(
           shiny::textInput(inputId = "signatur", 
-                           label = "Signatur des Lehrers",
+                           label = "Signatur des Lehrers (optional)",
                            placeholder = "Abteilungsleitung I")  
+        ),
+        fluidRow(
+          shiny::textInput(inputId = "qrLink", 
+                           label = "Link zu Übungen (optional)",
+                           placeholder = "https://www...")  
         ),
         fluidRow(
           shiny::actionButton(inputId = "btBrief", 

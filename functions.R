@@ -45,23 +45,23 @@ checkInputErrors <- function(inputName, inputRf, inputWe, numItems, klasse) {
   if(nchar(str_trim(inputName)) == 0) {
     return("Bitte Namen eingeben.")
   }
-
+  
   if(checkCompleteInput(rf = inputRf, we = inputWe)) {
     return("Bitte beide Werte angeben oder keinen (Schüler hat nicht teilgenommen).")
   }
-
+  
   if(checkRfWe(rf = inputRf, we = inputWe)) {
     return("R/F-Wert kann nicht größer als WE-Wert sein.")
   }
-
+  
   if(checkMorePointsThenNumItems(rf = inputRf, we = inputWe, numItems = numItems)) {
     return("R/F- bzw WE-Wert kann nicht höher als Anzahl Test-Items sein.")
   }
-
+  
   if(is.null(klasse)) {
     return("Bitte Klassenstufe und Klasse angeben.")
   }
-
+  
   return(NULL)
 }
 
@@ -316,7 +316,8 @@ convert_kat_meaning <- function(kat, table_path = "elternbrief/ergebnisse.xlsx")
   return(paste0(df$kat_ext[idx], ": ", df$bedeutung[idx]))
 }
 
-compose_letter <- function(name, klasse, kat, lehrername, signatur, output = NULL) {
+compose_letter <- function(name, klasse, kat, lehrername, signatur, qrLink, output = NULL) {
+  # all variables are processed in elternbrief.Rmd!
   kat <- convert_kat_meaning(kat)
   
   rmarkdown::render("elternbrief/elternbrief.Rmd", output_file = output)
@@ -331,7 +332,25 @@ combine_letters <- function(rdocx, temp_path, out_path) {
   return(rdocx)
 }
 
-create_letters <- function(df, lehrername, signatur) {
+generate_qrcode <- function(qrLink) {
+  if(!is.null(qrLink)) {
+    if(isTruthy(qrLink)) {
+      qrLink <- carbonate::tinyurl(qrLink)
+      linkText <- paste("Link/QR-Code zu Übungsaufgaben:", qrLink)
+      qr <- qr_code(qrLink, ecl = "M")
+      qr_tmp <- tempfile(fileext = ".png")
+      
+      png(filename = qr_tmp)
+      plot(qr)
+      dev.off()
+      
+      return(list(img = qr_tmp,
+                  txt = linkText))
+    }}
+  return(NA)
+}
+
+create_letters <- function(df, lehrername, signatur, qrLink) {
   
   df <- janitor::clean_names(df)
   
@@ -347,12 +366,14 @@ create_letters <- function(df, lehrername, signatur) {
                    kat = df$kat[i], 
                    lehrername = lehrername, 
                    signatur = signatur,
-                   output = tmp)
+                   output = tmp,
+                   qrLink = qrLink)
     
     if(i == 1) {
-      rdocx <- officer::read_docx(tmp)
+      rdocx <- officer::read_docx(tmp) 
       next()
     } 
+    
     rdocx <- combine_letters(rdocx, temp_path = tmp)
     
     if(fs::file_exists("elternbrief/elternbrief.knit.md")) {
