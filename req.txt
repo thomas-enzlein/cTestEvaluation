@@ -1,7 +1,6 @@
 shiny
 shinybusy
 shinyjs
-shinyfullscreen
 shinydashboard
 shinyhelper
 xfun
@@ -27,3 +26,4 @@ export
 flextable
 pandoc
 qrcode
+carbonate

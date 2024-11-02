@@ -69,19 +69,13 @@ body <- dashboardBody(
         
         box(title = "Übersichtstabelle",
             fluidRow(
-              div(dataTableOutput("tabUebersicht"), 
-                  style = "margin-left:15px;
-                           margin-right:15px")
-            ), 
-            fluidRow(
               column(width = 2,
-                     createActionButton("btEntfernen", "entfernen", icon("trash"))
               )
             ),
             fluidRow(
-              column(width = 2,
-                     createActionButton("btSpeichern", "speichern", icon("floppy-disk"))
-              )
+              div(dataTableOutput("tabUebersicht"), 
+                  style = "margin-left:15px;
+                           margin-right:15px")
             ),
             width = 12
         )
@@ -115,7 +109,7 @@ body <- dashboardBody(
             createStatsOutput("statsWE")
           ),
           fluidRow(
-            column(width = 2,
+            column(width = 3,
                    selectInput(inputId = "WEplotType", 
                                choices = c("WE-%",
                                            "Differenz"), 
@@ -128,13 +122,6 @@ body <- dashboardBody(
     ),
     tabItem(
       tabName = "experten",
-      column(width = 4,
-        shiny::fileInput(inputId = "input_tsv", 
-                         label = "Daten laden (*.tsv)", 
-                         accept = ".tsv", 
-                         buttonLabel = "Durchsuchen",
-                         placeholder = "Nichts ausgewählt")
-      ),
       column(width = 4,
         fluidRow(
           shiny::textInput(inputId = "lehrername", 

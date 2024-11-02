@@ -200,7 +200,8 @@ createActionButton <- function(inputId, label, icon) {
   actionButton(inputId = inputId, 
                label = label, 
                style = 'margin-top:25px;
-                        margin-left:15px',
+                        margin-left:15px;
+                        margin-bottom:6px',
                icon = icon)
 }
 
