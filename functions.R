@@ -351,7 +351,7 @@ generate_qrcode <- function(qrLink) {
       }
       
       
-      linkText <- paste("Link/QR-Code zu Übungsaufgaben:\n", tinyLink$link)
+      linkText <- paste("Sie möchten Ihr Kind unterstützen?\nDann schauen Sie hier in unsere Sammlung:", tinyLink$link)
       qr <- qr_code(qrLink, ecl = "M")
       qr_tmp <- tempfile(fileext = ".png")
       
