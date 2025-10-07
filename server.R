@@ -32,7 +32,7 @@ server <- function(input, output, session) {
     dt <- datatable(rv$df,
                     selection = "multiple",
                     options = list(searching = TRUE,
-                                   pageLength = 15,
+                                   pageLength = 30,
                                    lengthMenu = c(10, 15, 30), 
                                    scrollX = TRUE,
                                    language = list(url = "de-DE.json")))  %>%

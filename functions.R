@@ -336,8 +336,22 @@ combine_letters <- function(rdocx, temp_path, out_path) {
 generate_qrcode <- function(qrLink) {
   if(!is.null(qrLink)) {
     if(isTruthy(qrLink)) {
-      qrLink <- carbonate::tinyurl(qrLink)
-      linkText <- paste("Link/QR-Code zu Übungsaufgaben:", qrLink)
+      
+      # first check if global object tinyLink is already present
+      # this is because tinyurl.com will answer a limited number of requests
+      if(!exists("tinyLink")) {
+        tinyLink <<- list(link = carbonate::tinyurl(qrLink),
+                          raw = qrLink)
+      } else {
+      # if url is different, generate a new tinyLink
+        if(tinyLink$raw != qrLink) {
+          tinyLink <<- list(link = carbonate::tinyurl(qrLink),
+                            raw = qrLink)
+        }
+      }
+      
+      
+      linkText <- paste("Link/QR-Code zu Übungsaufgaben:\n", tinyLink$link)
       qr <- qr_code(qrLink, ecl = "M")
       qr_tmp <- tempfile(fileext = ".png")
       
@@ -353,7 +367,8 @@ generate_qrcode <- function(qrLink) {
 
 create_letters <- function(df, lehrername, signatur, qrLink) {
   
-  df <- janitor::clean_names(df)
+  df <- janitor::clean_names(df) %>%
+    mutate(kat = str_remove(kat, pattern = "\\*"))
   
   if(fs::file_exists("elternbrief/elternbrief.knit.md")) {
     fs::file_delete("elternbrief/elternbrief.knit.md")

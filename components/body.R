@@ -21,7 +21,7 @@ body <- dashboardBody(
           title = "Schüler hinzufügen",
           fluidRow(
             column(width = 6,
-                   textInput(inputId = "schuelerName", label = "Name")
+                   textInput(inputId = "schuelerName", label = "Name", placeholder = "Nachname, Vorname (wie in SchILD)")
             ),
             column(width = 3,
                    createInputField("weWert", "WE-Wert")
@@ -31,14 +31,17 @@ body <- dashboardBody(
             )
           ),
           fluidRow(
-            column(width = 6,
+            column(width = 3,
                    createActionButton("btHinzufuegen", "hinzufügen", icon("check"))
+            ),
+            column(width = 3,
+                   createActionButton("btEntfernen", "löschen", icon("trash"))
             ),
             column(width = 2,
                    selectInput(inputId = "numItems", 
                                label = "Anzahl Test-Items", 
                                choices = c(20, 26, 40, 60, 80, 100), 
-                               selected = 26) %>%
+                               selected = 40) %>%
                      helper(content = "numItems")
             ),
             column(width = 2,
@@ -85,22 +88,6 @@ body <- dashboardBody(
     ### Statistik Tab ####
     tabItem(
       tabName = "statistik",
-      box(title = "R/F-Verteilung der Schüler",
-          fluidRow(
-            createPlotOutput("histRF")
-          ),
-          fluidRow(
-            createStatsOutput("statsRF"),
-            div(h4("Gestrichelte Linie zeigt Referenzswert"), 
-                style = "margin-left:15px;
-                           margin-right:15px"),
-            div(h4("Gepunktete Linie zeigt unteren Normbereich"),
-                style = "margin-left:15px;
-                           margin-right:15px"),
-            
-          ),
-          width = 6
-      ),
       box(title = "WE-Verteilung der Schüler",
           fluidRow(
             createPlotOutput("histWE")
@@ -118,6 +105,22 @@ body <- dashboardBody(
                                multiple = FALSE))
           ),
           width = 6
+      ),
+      box(title = "R/F-Verteilung der Schüler",
+          fluidRow(
+            createPlotOutput("histRF")
+          ),
+          fluidRow(
+            createStatsOutput("statsRF"),
+            div(h4("Gestrichelte Linie zeigt Referenzswert"), 
+                style = "margin-left:15px;
+                           margin-right:15px"),
+            div(h4("Gepunktete Linie zeigt unteren Normbereich"),
+                style = "margin-left:15px;
+                           margin-right:15px"),
+            
+          ),
+          width = 6
       )
     ),
     tabItem(
@@ -130,12 +133,12 @@ body <- dashboardBody(
         ),
         fluidRow(
           shiny::textInput(inputId = "signatur", 
-                           label = "Signatur des Lehrers (optional)",
+                           label = "Signatur/Position des Lehrers (optional)",
                            placeholder = "Abteilungsleitung I")  
         ),
         fluidRow(
           shiny::textInput(inputId = "qrLink", 
-                           label = "Link zu Übungen (optional)",
+                           label = "Link zu Übungen (wird als Text&QR-Code eingefügt, optional)",
                            placeholder = "https://www...")  
         ),
         fluidRow(
