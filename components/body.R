@@ -138,7 +138,7 @@ body <- dashboardBody(
         ),
         fluidRow(
           shiny::textInput(inputId = "qrLink", 
-                           label = "Link zu Übungen (wird als Text&QR-Code eingefügt, optional)",
+                           label = "Link zu Übungen (wird als QR-Code eingefügt, optional)",
                            placeholder = "https://www...")  
         ),
         fluidRow(

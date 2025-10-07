@@ -1,4 +1,4 @@
-req <- readLines("req.txt")
+req <- readLines("req.txt", warn = FALSE)
 lapply(req, function(x) {
   library(x, 
           warn.conflicts = FALSE, 

@@ -158,7 +158,7 @@ server <- function(input, output, session) {
     }
     
     showNotification("Elternbriefe werden erstellen.\n Dies kann mehrere Minuten dauern.\nBitte warten...",
-                     duration = 10)
+                     duration = 30)
     
     create_letters(rv$df, 
                    lehrername = input$lehrername, 

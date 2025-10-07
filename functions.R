@@ -392,7 +392,7 @@ create_letters <- function(df, lehrername, signatur, qrLink) {
     
     rdocx <- combine_letters(rdocx, temp_path = tmp)
     
-    if(fs::file_exists("elternbrief/elternbrief.knit.md")) {
+    if(i > 1 & fs::file_exists("elternbrief/elternbrief.knit.md")) {
       fs::file_delete("elternbrief/elternbrief.knit.md")
     }
   }
