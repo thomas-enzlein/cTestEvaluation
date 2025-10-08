@@ -149,33 +149,76 @@ checkColumnNames <- function(df1, df2) {
 }
 
 # Histogram erstellen
-createHistogram <- function(df, x, fill, xlab, bins = 30) {
+createPlot<- function(df, x, fill, xlab, bins = 30, allCombined = TRUE, type = c("Histogramm", "Dichte")) {
   df <- df %>%
     mutate(Name = paste0(Name, ", ", Klasse))
   
-  p <- ggplot(df, aes_string(x = x, text = "Name", fill = fill)) +
-    geom_histogram(bins = bins, col = "black", show.legend = FALSE) +
-    scale_fill_manual(values =  cols, limits = lvls) +
-    labs(x = xlab,
-         y = "Anzahl") +
-    theme(legend.position='none') 
+  if(type == "Histogramm") {
+    p <- ggplot(df, aes_string(x = x, text = "Name", fill = fill)) +
+      geom_histogram(bins = bins, col = "black", show.legend = FALSE) +
+      scale_fill_manual(values =  cols, limits = lvls) +
+      labs(x = xlab,
+           y = "Anzahl") +
+      theme(legend.position='none') 
+  } else if(type == "Dichte") {
+    p <- ggplot(df, aes_string(x = x,col = "Klasse")) +
+      geom_density(linewidth = 1) +
+      labs(x = xlab,
+           y = "Anzahl") +
+      theme(legend.position = "inside", legend.position.inside =  c(.94, .75))
+  }
+  
+  
+  if(!allCombined) {
+    p <- p + 
+      facet_wrap(~Klasse, ncol = 1) 
+  }
   
   return(p)
 }
 
 # Median und Mittelwert berechnen und aufbereiten
-createStatsText <- function(df, column, label) {
-  l1 <- paste0("Mittelwert ", label, ": ", round(mean(df[[column]], na.rm = TRUE), 1), "±", round(sd(df[[column]], na.rm = TRUE), 1), "%")
-  l2 <- paste0("Median ", label, ": ", round(median(df[[column]], na.rm = TRUE), 1), "%")
+createStatsText <- function(df, column, label, multiple = FALSE) {
+  if(!multiple) {
+    l1 <- paste0("Mittelwert ", label, ": ", round(mean(df[[column]], na.rm = TRUE), 1), "±", round(sd(df[[column]], na.rm = TRUE), 1), "%")
+    l2 <- paste0("Median ", label, ": ", round(median(df[[column]], na.rm = TRUE), 1), "%")
+    l3 <- paste0("Anzahl: ", dim(df)[1])
+  } else {
+    stats <- 
+      df %>% 
+      summarise(mean = round(mean(.data[[column]], na.rm = TRUE), 1),
+                sd = round(sd(.data[[column]], na.rm = TRUE), 1), 
+                median = round(median(.data[[column]], na.rm = TRUE), 1), 
+                n = n(),
+                .by = "Klasse")
+    l1 <- paste0("Mittelwert ", label, ": ")
+    l2 <- paste0("Median ", label, ": ")
+    l3 <- paste0("Anzahl: ")
+    for(i in seq.int(dim(stats)[1])) {
+      l1 <- paste0(l1, stats$mean[i], "±", stats$sd[i], " (", stats$Klasse[i])
+      l2 <- paste0(l2, stats$median[i], " (", stats$Klasse[i])
+      l3 <- paste0(l3, stats$n[i], " (", stats$Klasse[i])
+      if(i != dim(stats)[1]) {
+        l1 <- paste0(l1, "), ")
+        l2 <- paste0(l2, "), ")
+        l3 <- paste0(l3, "), ")
+      } else {
+        l1 <- paste0(l1, ")")
+        l2 <- paste0(l2, ")")
+        l3 <- paste0(l3, ")")
+      }
+    }
+  }
+                
   
-  res <- div(HTML(paste(l1, l2,  sep = "<br/>")),
+  res <- div(HTML(paste(l1, l2, l3,  sep = "<br/>")),
              style = "margin-left:15px;
              margin-right:15px;
              font-size: 20px;
              font-style: bold")
   
   return(res)
-}
+  }
 
 # plot/stats output vorbereiten
 createPlotOutput <- function(outputId) {
@@ -343,7 +386,7 @@ generate_qrcode <- function(qrLink) {
         tinyLink <<- list(link = carbonate::tinyurl(qrLink),
                           raw = qrLink)
       } else {
-      # if url is different, generate a new tinyLink
+        # if url is different, generate a new tinyLink
         if(tinyLink$raw != qrLink) {
           tinyLink <<- list(link = carbonate::tinyurl(qrLink),
                             raw = qrLink)

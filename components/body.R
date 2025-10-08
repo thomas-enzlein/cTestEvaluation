@@ -96,13 +96,26 @@ body <- dashboardBody(
             createStatsOutput("statsWE")
           ),
           fluidRow(
-            column(width = 3,
-                   selectInput(inputId = "WEplotType", 
-                               choices = c("WE-%",
-                                           "Differenz"), 
-                               label = "Diagramm Typ", 
-                               selected = "WE-%", 
-                               multiple = FALSE))
+            column(width = 6, offset = 1,
+                   fluidRow(
+                     column(width = 6,
+                            checkboxInput(inputId = "cbWEDiff", 
+                                          value = FALSE, 
+                                          label = "Differenz")),
+                     column(width = 6, 
+                            checkboxInput(inputId = "cbAllCombined", 
+                                          value = TRUE, 
+                                          label = "Gesamtübersicht")
+                            )
+                     ),
+            fluidRow(
+              selectInput(inputId = "siPlotType", 
+                          choices = c("Histogramm",
+                                      "Dichte"), 
+                          label = "Diagramm Typ", 
+                          selected = "Histogram", 
+                          multiple = FALSE, width = "125px")
+            ))
           ),
           width = 6
       ),
@@ -126,26 +139,26 @@ body <- dashboardBody(
     tabItem(
       tabName = "experten",
       column(width = 4,
-        fluidRow(
-          shiny::textInput(inputId = "lehrername", 
-                           label = "Name des Lehrers",
-                           placeholder = "Max Mustermann")  
-        ),
-        fluidRow(
-          shiny::textInput(inputId = "signatur", 
-                           label = "Signatur/Position des Lehrers (optional)",
-                           placeholder = "Abteilungsleitung I")  
-        ),
-        fluidRow(
-          shiny::textInput(inputId = "qrLink", 
-                           label = "Link zu Übungen (wird als QR-Code eingefügt, optional)",
-                           placeholder = "https://www...")  
-        ),
-        fluidRow(
-          shiny::actionButton(inputId = "btBrief", 
-                              icon = icon("envelope"), 
-                              label = "Elternbriefe erstellen")  
-        )
+             fluidRow(
+               shiny::textInput(inputId = "lehrername", 
+                                label = "Name des Lehrers",
+                                placeholder = "Max Mustermann")  
+             ),
+             fluidRow(
+               shiny::textInput(inputId = "signatur", 
+                                label = "Signatur/Position des Lehrers (optional)",
+                                placeholder = "Abteilungsleitung I")  
+             ),
+             fluidRow(
+               shiny::textInput(inputId = "qrLink", 
+                                label = "Link zu Übungen (wird als QR-Code eingefügt, optional)",
+                                placeholder = "https://www...")  
+             ),
+             fluidRow(
+               shiny::actionButton(inputId = "btBrief", 
+                                   icon = icon("envelope"), 
+                                   label = "Elternbriefe erstellen")  
+             )
       )
     )
   )

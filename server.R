@@ -172,15 +172,17 @@ server <- function(input, output, session) {
   })
   
   #### Verteilungs plot ####
-  observeEvent(list(rv$df, input$WEplotType), {
+  observeEvent(list(rv$df, input$cbWEDiff, input$cbAllCombined, input$siPlotType), {
     
     if(rv$inital) {
       return()
     }
     
-    pRF <- createHistogram(rv$df, x = "`R/F-%`", 
-                           fill = "`Kat.`", 
-                           xlab = "R/F-Wert in %")
+    pRF <- createPlot(rv$df, x = "`R/F-%`", 
+                      fill = "`Kat.`", 
+                      xlab = "R/F-Wert in %", 
+                      allCombined = input$cbAllCombined, 
+                      type = input$siPlotType)
     
     pRF <- pRF + 
       geom_vline(xintercept = 71.3, linetype = "dashed", color = "grey40") + 
@@ -188,29 +190,33 @@ server <- function(input, output, session) {
     
     output$histRF <-  renderPlotly(ggplotly(pRF))
     
-    if(input$WEplotType == "WE-%") {
-      pWE <- createHistogram(rv$df, 
-                             x = "`WE-%`", 
-                             fill = "`Kat.`", 
-                             xlab = "WE-Wert in %")
-    } else if(input$WEplotType == "Differenz") {
+    if(!input$cbWEDiff) {
+      pWE <- createPlot(rv$df, 
+                        x = "`WE-%`", 
+                        fill = "`Kat.`", 
+                        xlab = "WE-Wert in %",
+                        allCombined = input$cbAllCombined,
+                        type = input$siPlotType)
+    } else  {
       pWE <-
         rv$df %>%
         mutate(diff = `WE-%` - `R/F-%`) %>%
-        createHistogram(x = "`diff`", 
-                        fill = "`Kat.`", 
-                        xlab = "Differenz R/F- und WE-Wert in %")
+        createPlot(x = "`diff`", 
+                   fill = "`Kat.`", 
+                   xlab = "Differenz R/F- und WE-Wert in %",
+                   allCombined = input$cbAllCombined,
+                   type = input$siPlotType)
     }
     
     output$histWE <-  renderPlotly(ggplotly(pWE))
     
     # Mittelwert und Median unter Plots
     output$statsRF <- renderUI({
-      createStatsText(rv$df, "R/F-%", "R/F")
+      createStatsText(rv$df, "R/F-%", "R/F", multiple = !input$cbAllCombined)
     })
     
     output$statsWE <- renderUI({
-      createStatsText(rv$df, "WE-%", "WE")
+      createStatsText(rv$df, "WE-%", "WE", multiple = !input$cbAllCombined)
     })
   })
 }
