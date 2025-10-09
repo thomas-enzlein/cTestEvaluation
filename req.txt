@@ -27,3 +27,4 @@ flextable
 pandoc
 qrcode
 carbonate
+fuzzyjoin

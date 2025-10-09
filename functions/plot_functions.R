@@ -98,8 +98,7 @@ plot_veraenderung <- function(data, variable = c("WE-%", "R/F-%", "diff"),
       
       if (nrow(fuzzy_results) == 0) {
         return(ggplot() +
-                 geom_text(aes(0, 0, label = "Keine Übereinstimmungen mit Fuzzy-Matching gefunden")) +
-                 theme_void())
+                 geom_text(aes(0, 0, label = "Keine Übereinstimmungen mit Fuzzy-Matching gefunden")))
       }
       
       # Daten für Plot vorbereiten mit gematchten Namen
@@ -112,8 +111,7 @@ plot_veraenderung <- function(data, variable = c("WE-%", "R/F-%", "diff"),
       
       if (nrow(df_wide) == 0) {
         return(ggplot() +
-                 geom_text(aes(0, 0, label = "Keine Personen mit zwei Messungen vorhanden")) +
-                 theme_void())
+                 geom_text(aes(0, 0, label = "Keine Personen mit zwei Messungen vorhanden")))
       }
       
       # Namen für Plot: zeige beide Versionen mit Match-Info
@@ -138,8 +136,7 @@ plot_veraenderung <- function(data, variable = c("WE-%", "R/F-%", "diff"),
       
       if (nrow(df_wide) == 0) {
         return(ggplot() +
-                 geom_text(aes(0, 0, label = "Keine Personen mit zwei Messungen vorhanden")) +
-                 theme_void())
+                 geom_text(aes(0, 0, label = "Keine Personen mit zwei Messungen vorhanden")))
       }
       
       df_wide <- df_wide %>% mutate(Name = forcats::fct_reorder(Name, Veränderung))
@@ -196,8 +193,7 @@ plot_veraenderung <- function(data, variable = c("WE-%", "R/F-%", "diff"),
     # --- Fall 3: Nur eine Klasse vorhanden ---
   } else {
     ggplot() +
-      geom_text(aes(0, 0, label = "Nur eine Klasse im Datensatz vorhanden – keine Entwicklung darstellbar")) +
-      theme_void()
+      geom_text(aes(0, 0, label = "Nur eine Klasse im Datensatz vorhanden – keine Entwicklung darstellbar"))
   }
 }
 
