@@ -24,4 +24,5 @@ source("functions/functions.R")
 source("functions/plot_functions.R")
 source("functions/table2doc_.R")
 source("functions/table2spreadsheet_.R")
+source("functions/fuzzyMatch.R")
 
