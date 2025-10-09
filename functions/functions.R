@@ -148,35 +148,6 @@ checkColumnNames <- function(df1, df2) {
   return(all(colnames(df1) %in% colnames(df2)))
 }
 
-# Histogram erstellen
-createPlot<- function(df, x, fill, xlab, bins = 30, allCombined = TRUE, type = c("Histogramm", "Dichte")) {
-  df <- df %>%
-    mutate(Name = paste0(Name, ", ", Klasse))
-  
-  if(type == "Histogramm") {
-    p <- ggplot(df, aes_string(x = x, text = "Name", fill = fill)) +
-      geom_histogram(bins = bins, col = "black", show.legend = FALSE) +
-      scale_fill_manual(values =  cols, limits = lvls) +
-      labs(x = xlab,
-           y = "Anzahl") +
-      theme(legend.position='none') 
-  } else if(type == "Dichte") {
-    p <- ggplot(df, aes_string(x = x,col = "Klasse")) +
-      geom_density(linewidth = 1) +
-      labs(x = xlab,
-           y = "Anzahl") +
-      theme(legend.position = "inside", legend.position.inside =  c(.94, .75))
-  }
-  
-  
-  if(!allCombined) {
-    p <- p + 
-      facet_wrap(~Klasse, ncol = 1) 
-  }
-  
-  return(p)
-}
-
 # Median und Mittelwert berechnen und aufbereiten
 createStatsText <- function(df, column, label, multiple = FALSE) {
   if(!multiple) {
@@ -219,12 +190,7 @@ createStatsText <- function(df, column, label, multiple = FALSE) {
   
   return(res)
   }
-
-# plot/stats output vorbereiten
-createPlotOutput <- function(outputId) {
-  div(plotlyOutput(outputId = outputId), class = "plot-div")
-}
-
+# stat output vorbereiten
 createStatsOutput <- function(outputId) {
   htmlOutput(outputId = outputId)
 }

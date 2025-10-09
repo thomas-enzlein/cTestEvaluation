@@ -111,10 +111,11 @@ body <- dashboardBody(
             fluidRow(
               selectInput(inputId = "siPlotType", 
                           choices = c("Histogramm",
-                                      "Dichte"), 
+                                      "Dichte",
+                                      "Entwicklung"), 
                           label = "Diagramm Typ", 
                           selected = "Histogram", 
-                          multiple = FALSE, width = "125px")
+                          multiple = FALSE, width = "130px")
             ))
           ),
           width = 6
@@ -125,12 +126,7 @@ body <- dashboardBody(
           ),
           fluidRow(
             createStatsOutput("statsRF"),
-            div(h4("Gestrichelte Linie zeigt Referenzswert"), 
-                style = "margin-left:15px;
-                           margin-right:15px"),
-            div(h4("Gepunktete Linie zeigt unteren Normbereich"),
-                style = "margin-left:15px;
-                           margin-right:15px"),
+            uiOutput("dynamicText")
             
           ),
           width = 6

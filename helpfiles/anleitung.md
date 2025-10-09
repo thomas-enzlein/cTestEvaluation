@@ -46,7 +46,8 @@ Die oberen beiden Buttons können genutzt werden um die aktuell geladenen/eingeg
 3.  **Elternbrief**: Hier können automatisiert Elternbriefe erstellt werden.
 4.  **Anleitung**: Diese Anleitung.
 
-           
+<br>
+<br>
 
 ### Auswertung
 
@@ -56,7 +57,7 @@ Dieser Unterpunkt dient vor allem dem Einpflegen der Schülerdaten. Hier können
 
 Wurde ein oder mehrere Schüler falsch eingetragen, können diese durch Anklicken markiert und mit dem `löschen`-Button gelöscht werden.
 
-![](images/auswertung_eingabe.PNG){width="800"}
+![](images/auswertung_eingabe.PNG){width="600"}
 
 > **Tipp**: Am schnellsten lassen sich Schüler eingeben, indem man die Felder mit der **Tabulatortaste** wechselt. Also ins Feld `Name` klicken, `Name` eingeben, **Tab** (Cursor springt ins Feld `WE-Wert`), `WE-Wert` eintragen, **Tab**, `R/F-Wert` eintragen, **Tab** (`Hinzufügen`-Button ist markiert), **Enter** (Cursor springt zurück ins Feld **Name** und der nächste Schüler kann eingetragen werden).
 
@@ -70,13 +71,13 @@ Ist die Auswertung abgeschlossen, kann man mit dem `Speichern`-Button die Daten 
 
 Einzelne Schüler lassen sich durch Eintrag des Namens in das Feld `Suchen` finden.
 
-![](images/tabelle.PNG){width="800"}
+![](images/tabelle.PNG){width="600"}
 
 ### Statistik
 
 Hier können die eingegebenen Daten als Histogramme visualisiert werden.
 
-![](images/statistik.PNG){width="800"}
+![](images/statistik.PNG){width="600"}
 
 > **Tipp**: Die Diagramme können interaktiv gezoomt werden und wenn man die Maus über ein Kästchen bewegt, werden die einzelnen Schüler angezeigt.
 

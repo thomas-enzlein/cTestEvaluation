@@ -20,7 +20,8 @@ lvls <- c("1A", "1B",
           "4C", "4C*", "4D", "4E", 
           "5C", "5C*", "5D", "5E")
 
-source("functions.R")
-source("table2doc_.R")
-source("table2spreadsheet_.R")
+source("functions/functions.R")
+source("functions/plot_functions.R")
+source("functions/table2doc_.R")
+source("functions/table2spreadsheet_.R")
 

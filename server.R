@@ -178,34 +178,36 @@ server <- function(input, output, session) {
       return()
     }
     
-    pRF <- createPlot(rv$df, x = "`R/F-%`", 
-                      fill = "`Kat.`", 
+    pRF <- createPlot(rv$df, x = "R/F-%", 
+                      fill = "Kat.", 
                       xlab = "R/F-Wert in %", 
                       allCombined = input$cbAllCombined, 
                       type = input$siPlotType)
     
-    pRF <- pRF + 
-      geom_vline(xintercept = 71.3, linetype = "dashed", color = "grey40") + 
-      geom_vline(xintercept = 65, linetype = "dotted", color = "grey40")
+    if(!input$siPlotType == "Entwicklung") {
+      pRF <- pRF + 
+        geom_vline(xintercept = 71.3, linetype = "dashed", color = "grey40") + 
+        geom_vline(xintercept = 65, linetype = "dotted", color = "grey40")
+    }
     
     output$histRF <-  renderPlotly(ggplotly(pRF))
     
     if(!input$cbWEDiff) {
       pWE <- createPlot(rv$df, 
-                        x = "`WE-%`", 
-                        fill = "`Kat.`", 
+                        x = "WE-%", 
+                        fill = "Kat.", 
                         xlab = "WE-Wert in %",
                         allCombined = input$cbAllCombined,
                         type = input$siPlotType)
     } else  {
-      pWE <-
-        rv$df %>%
-        mutate(diff = `WE-%` - `R/F-%`) %>%
-        createPlot(x = "`diff`", 
-                   fill = "`Kat.`", 
-                   xlab = "Differenz R/F- und WE-Wert in %",
-                   allCombined = input$cbAllCombined,
-                   type = input$siPlotType)
+        pWE <-
+          rv$df %>%
+          mutate(diff = `WE-%` - `R/F-%`) %>%
+          createPlot(x = "diff", 
+                     fill = "Kat.", 
+                     xlab = "Differenz R/F- und WE-Wert in %",
+                     allCombined = input$cbAllCombined,
+                     type = input$siPlotType)
     }
     
     output$histWE <-  renderPlotly(ggplotly(pWE))
@@ -217,6 +219,18 @@ server <- function(input, output, session) {
     
     output$statsWE <- renderUI({
       createStatsText(rv$df, "WE-%", "WE", multiple = !input$cbAllCombined)
+    })
+    
+    # Info text unter plots
+    output$dynamicText <- renderUI({
+      if(input$siPlotType != "Entwicklung") {
+        tagList(
+          div(h4("Gestrichelte Linie zeigt Referenzswert"), 
+              style = "margin-left:15px; margin-right:15px"),
+          div(h4("Gepunktete Linie zeigt unteren Normbereich"),
+              style = "margin-left:15px; margin-right:15px")
+        )
+      }
     })
   })
 }
