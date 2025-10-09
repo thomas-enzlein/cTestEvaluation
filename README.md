@@ -1,5 +1,7 @@
 # C-Test Evaluation App
 
+Diese R Shiny App ermöglicht die Evaluierung von C-Tests als diagnostisches Werkzeug im Deutschunterricht.
+
 Für eine Anleitung auf Deutsch, siehe [hier](https://github.com/thomas-enzlein/cTestEvaluation/blob/main/helpfiles/anleitung.md).
 
 ## Overview and Purpose
