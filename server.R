@@ -5,7 +5,7 @@ server <- function(input, output, session) {
   })
   
   observe_helpers()
-  theme_set(theme_minimal(base_size = 16) +
+  theme_set(theme_minimal(base_size = 18) +
               theme(panel.grid = element_blank()))
   
   #### App-Object ####

@@ -10,27 +10,45 @@ createPlot<- function(df, x, fill, xlab, bins = 30, allCombined = TRUE, type = c
   
   p <- switch(type,
               "Histogramm" = {
-                ggplot(df, aes(x = !!sym(x), text = NameKlasse, fill = !!sym(fill))) +
-                  geom_histogram(bins = bins, col = "black", show.legend = FALSE) +
-                  scale_fill_manual(values = cols, limits = lvls) +
-                  labs(x = xlab, y = "Anzahl") +
+                ggplot(df, aes(x = !!sym(x), 
+                               text = NameKlasse, 
+                               fill = !!sym(fill))) +
+                  geom_histogram(bins = bins, 
+                                 col = "black", 
+                                 show.legend = FALSE) +
+                  scale_fill_manual(values = cols, 
+                                    limits = lvls) +
+                  labs(x = xlab, 
+                       y = "Anzahl") +
                   theme(legend.position = 'none')
               },
               
               "Dichte" = {
-                ggplot(df, aes(x = !!sym(x), col = Klasse)) +
-                  stat_density(geom="line", position="identity", linewidth = 1) +
-                  labs(x = xlab, y = "Anzahl") +
-                  theme(legend.position = "inside", legend.position.inside = c(.94, .75))
+                ggplot(df, aes(x = !!sym(x), 
+                               col = Klasse)) +
+                  stat_density(geom="line", 
+                               position="identity", 
+                               linewidth = 1) +
+                  labs(x = xlab, 
+                       y = "Anzahl") +
+                  theme(legend.position = "inside", 
+                        legend.position.inside = c(.94, .75))
               },
               
               "Entwicklung" = {
-                plot_veraenderung(df, variable = x)
+                plot_veraenderung(df, 
+                                  variable = x)
               },
               
               {
                 warning(paste("Unbekannter Plot-Typ:", type))
-                ggplot() + annotate("text", x = 0.5, y = 0.5, label = "Unbekannter Plot-Typ", size = 6) + theme_void()
+                ggplot() + 
+                  annotate("text", 
+                           x = 0.5, 
+                           y = 0.5, 
+                           label = "Unbekannter Plot-Typ", 
+                           size = 6) + 
+                  theme_void()
               }
   )
   
@@ -77,9 +95,13 @@ plot_veraenderung <- function(data, variable = c("WE-%", "R/F-%", "diff"),
     
     df_long <- df %>%
       filter(Klasse %in% klassen) %>%
-      mutate(Klasse = factor(Klasse, levels = klassen))
+      mutate(Klasse = factor(Klasse, 
+                             levels = klassen))
     
-    ggplot(df_long, aes(x = Klasse, y = !!sym(variable), group = Name, color = Name)) +
+    p <- ggplot(df_long, aes(x = Klasse, 
+                             y = !!sym(variable), 
+                             group = Name, 
+                             color = Name)) +
       geom_line(linewidth = 1) +
       geom_point(size = 2) +
       labs(
@@ -90,11 +112,14 @@ plot_veraenderung <- function(data, variable = c("WE-%", "R/F-%", "diff"),
     
     # --- Fall 2: Genau zwei Messzeitpunkte (Barchart mit Annotationen) ---
   } else if (n_klassen == 2) {
-    k1 <- klassen[1]; k2 <- klassen[2]
+    k1 <- klassen[1]
+    k2 <- klassen[2]
     
     if (use_fuzzy) {
       # Fuzzy-Matching durchführen
-      fuzzy_results <- fuzzy_match_names(df = df, var_name = variable, max_dist = max_dist)
+      fuzzy_results <- fuzzy_match_names(df = df, 
+                                         var_name = variable, 
+                                         max_dist = max_dist)
       
       if (nrow(fuzzy_results) == 0) {
         return(ggplot() +
@@ -146,12 +171,15 @@ plot_veraenderung <- function(data, variable = c("WE-%", "R/F-%", "diff"),
     xlim_range <- range(df_wide$Veränderung, na.rm = TRUE)
     x_buffer <- diff(xlim_range) * 0.33
     x_limits <- c(-max(abs(xlim_range)) - x_buffer, max(abs(xlim_range)) + x_buffer)
-    xlab <- paste("Entwicklung", variable, k1, "->", k2)
+    xlab <- paste("Entwicklung", if_else(variable != "diff", variable, "Diff. WE-R/F"), k1, "->", k2)
     
-    ggplot(df_wide, 
-           aes(x = Veränderung, 
-               y = Name_Display, 
-               fill = Veränderung > 0)) +
+    vmax <- max(df_wide$Veränderung, na.rm = TRUE)
+    pos <- if_else(vmax > 50, 25, vmax/2)
+    
+    p <- ggplot(df_wide, 
+                aes(x = Veränderung, 
+                    y = Name_Display, 
+                    fill = Veränderung > 0)) +
       geom_col() +
       geom_vline(xintercept = 0, color = "black", linewidth = 1) +
       # Veränderungstext nur wenn ≠ 0
@@ -159,9 +187,9 @@ plot_veraenderung <- function(data, variable = c("WE-%", "R/F-%", "diff"),
         data = subset(df_wide, round(Veränderung, 1) != 0),
         aes(label = sprintf("%+.1f%%", Veränderung), 
             x = if_else(Veränderung < 0, 
-                        -mean(abs(Veränderung), na.rm = TRUE), 
-                        mean(abs(Veränderung), na.rm = TRUE)),
-            color = if_else(Veränderung > 0, "darkgreen", "darkred")),
+                        -pos, 
+                        pos),
+            color = if_else(Veränderung > 0, "#004000", "#400000")),
         fontface = "bold", size = 3.3
       ) +
       # Aktuelle Werte rechtsbündig
@@ -170,9 +198,9 @@ plot_veraenderung <- function(data, variable = c("WE-%", "R/F-%", "diff"),
           label = sprintf("%.1f%%", Aktuell),
           x = max(Veränderung, na.rm = TRUE) + x_buffer * 0.66,
           color = case_when(
-            var == "diff" & Aktuell > 20 ~ "darkred",
+            var == "diff" & Aktuell >= 20 ~ "darkred",
             var == "diff" & Aktuell < 20 ~ "black",
-            Aktuell >= 65 ~ "darkgreen",
+            Aktuell >= 65 ~ "darkgreen", 
             Aktuell < 65 ~ "darkred"
           )
         ),
@@ -187,17 +215,18 @@ plot_veraenderung <- function(data, variable = c("WE-%", "R/F-%", "diff"),
       ) +
       theme(
         legend.position = "none",
-        plot.margin = margin(10, 60, 10, 10)
+        axis.text.y = element_text(color = "black")
       )
     
     # --- Fall 3: Nur eine Klasse vorhanden ---
   } else {
-    ggplot() +
+    p <- ggplot() +
       geom_text(aes(0, 0, label = "Nur eine Klasse im Datensatz vorhanden – keine Entwicklung darstellbar"))
   }
+  return(p)
 }
 
 # plot output vorbereiten
 createPlotOutput <- function(outputId) {
-  div(plotlyOutput(outputId = outputId), class = "plot-div")
+  div(plotlyOutput(outputId = outputId, height = "500px"), class = "plot-div")
 }
