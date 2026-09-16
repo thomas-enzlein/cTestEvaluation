@@ -35,8 +35,12 @@ jobs:
       SNAPSHOT: "2026-08-01"
 
     steps:
+      # Volle Historie und alle Tags holen: der Release-Text braucht die Commits
+      # seit dem letzten Tag (git log <letzter Tag>..<Tag>)
       - name: Quellcode holen
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # Auslieferungsordner festlegen. Zwei Bedingungen:
       #   - ausserhalb des Repositories, sonst spiegelt robocopy /MIR das
@@ -152,6 +156,64 @@ jobs:
           path: ${{ steps.factory.outputs.factory }}\Output\*.exe
           retention-days: 7
 
+      # Release-Text bauen: der Abschnitt der Version aus CHANGELOG.md, darunter
+      # die Commits seit dem letzten Tag und die Vergleichs-URL. Die
+      # GitHub-Automatik (--generate-notes) faellt weg, weil sie nur gemergte
+      # Pull Requests auflistet - hier wird direkt auf main committet.
+      - name: Release-Text vorbereiten
+        if: ${{ github.ref_type == 'tag' }}
+        id: notes
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $tag = "${{ github.ref_name }}"
+          $repo = "${{ github.repository }}"
+          $teile = @()
+
+          if (Test-Path "CHANGELOG.md") {
+            # Encoding ausdruecklich: damit Umlaute unabhaengig von den
+            # Voreinstellungen der Shell stimmen
+            $md = Get-Content "CHANGELOG.md" -Raw -Encoding UTF8
+            $muster = "(?ms)^##[^\r\n]*\b$([regex]::Escape($version))\b[^\r\n]*\r?\n(.*?)(?=^##\s|\z)"
+            $treffer = [regex]::Match($md, $muster)
+            if ($treffer.Success) {
+              $teile += $treffer.Groups[1].Value.Trim()
+            } else {
+              Write-Warning "CHANGELOG.md hat keinen Abschnitt fuer Version $version - es wird nur die Aenderungsliste verwendet."
+            }
+          } else {
+            Write-Warning "CHANGELOG.md fehlt - es wird nur die Aenderungsliste verwendet."
+          }
+
+          $letzterTag = (git tag --sort=-creatordate | Where-Object { $_ -ne $tag } | Select-Object -First 1)
+          if ($letzterTag) {
+            $alle = @(git log "$letzterTag..$tag" --no-merges --pretty="- %s (%h)")
+            $vergleich = "**Vergleich:** https://github.com/$repo/compare/$letzterTag...$tag"
+          } else {
+            $alle = @(git log $tag --no-merges --pretty="- %s (%h)")
+            $vergleich = "**Vergleich:** https://github.com/$repo/commits/$tag"
+          }
+          # Bei sehr vielen Commits nur die neuesten nennen
+          $grenze = 30
+          if ($alle.Count -gt $grenze) {
+            $commits = @($alle[0..($grenze - 1)]) + @("- ... und $($alle.Count - $grenze) weitere Commits (siehe Vergleich unten)")
+          } else {
+            $commits = $alle
+          }
+          if ($commits.Count -gt 0) {
+            $teile += "<details><summary>Aenderungen im Detail (Commits)</summary>`n`n" +
+                      (($commits -join "`n")) + "`n`n</details>"
+          }
+          $teile += $vergleich
+
+          # ohne BOM schreiben: PowerShell 5.1 haengt bei -Encoding UTF8 eines an
+          $datei = Join-Path $env:RUNNER_TEMP "release-notes.md"
+          [System.IO.File]::WriteAllText($datei, ($teile -join "`n`n"),
+                                        (New-Object System.Text.UTF8Encoding($false)))
+          "datei=$datei" >> $env:GITHUB_OUTPUT
+          Write-Host "--- Release-Text ---"
+          Get-Content $datei -Encoding UTF8
+
       - name: Release anlegen und Setup anhaengen
         if: ${{ github.ref_type == 'tag' }}
         shell: pwsh
@@ -160,13 +222,16 @@ jobs:
         run: |
           $setup = (Get-ChildItem "$env:FACTORY\Output\*.exe" | Select-Object -First 1).FullName
           $tag = "${{ github.ref_name }}"
-          Write-Host "Setup: $setup"
+          $notizen = "${{ steps.notes.outputs.datei }}"
+          Write-Host "Setup:   $setup"
+          Write-Host "Notizen: $notizen"
           # cmd /c, damit die Fehlermeldung von gh nicht als PowerShell-Fehler gilt
           cmd /c "gh release view $tag >nul 2>&1"
           if ($LASTEXITCODE -eq 0) {
-            Write-Host "Release $tag existiert - Setup wird angehaengt"
+            Write-Host "Release $tag existiert - Setup und Text werden aktualisiert"
             gh release upload $tag $setup --clobber
+            gh release edit $tag --notes-file $notizen
           } else {
-            gh release create $tag $setup --title "Release $tag" --generate-notes
+            gh release create $tag $setup --title "Version ${{ steps.version.outputs.version }}" --notes-file $notizen
           }
           if ($LASTEXITCODE -ne 0) { throw "Release $tag konnte nicht erstellt werden." }

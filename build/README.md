@@ -105,11 +105,19 @@ Der Workflow prüft vor dem Bauen, dass der Tag zur Version passt: bei Tag `v1.6
 `actions/cache` gecacht (Schlüssel aus R-Version, CRAN-Snapshot und `req.txt`) – der erste
 Lauf dauert daher deutlich länger als die folgenden.
 
+Der **Release-Text** wird automatisch gebaut: zuerst der Abschnitt der Version aus
+[CHANGELOG.md](../CHANGELOG.md), darunter in einem aufklappbaren Block die Commits seit dem
+letzten Tag und die Vergleichs-URL. Vor einem Release also in `CHANGELOG.md` einen
+Abschnitt `## <Version>` anlegen – fehlt er, wird nur gewarnt und die Änderungsliste
+verwendet (der Build läuft weiter). Die GitHub-Automatik `--generate-notes` wird bewusst
+nicht genutzt, weil sie nur gemergte Pull Requests auflistet.
+
 Damit der Ablauf reproduzierbar bleibt, sind R-Version (`4.5.3`) und CRAN-Snapshot
 (`2026-08-01`) im Workflow fest eingetragen; pandoc kommt jeweils als aktuelles Release
-dazu. Der Auslieferungsordner liegt in der CI **außerhalb** des Repos (`runner.temp`),
-sonst würde `robocopy /MIR` das Repository in sich selbst spiegeln – das Skript lehnt
-einen solchen Pfad inzwischen auch ausdrücklich ab.
+dazu. Der Auslieferungsordner liegt in der CI **außerhalb** des Repos (abgeleitet aus
+`github.workspace`, ohne `..` im Pfad – `upload-artifact` und `cache` verbieten relative
+Pfadangaben), sonst würde `robocopy /MIR` das Repository in sich selbst spiegeln; das
+Skript lehnt einen solchen Pfad zusätzlich ausdrücklich ab.
 
 ## Erster Test nach dem Bauen
 
