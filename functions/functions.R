@@ -271,7 +271,6 @@ checkInputFile <- function(inputFile) {
 
 loadData <- function(inputFile) {
   raw <- read_tsv(checkInputFile(inputFile), show_col_types = FALSE)
-  
   if(!"Klasse" %in% colnames(raw)) {
     message("Old .tsv file detected, converting to new format.")
     new_df <- raw %>%
@@ -343,8 +342,13 @@ combine_letters <- function(rdocx, temp_path, out_path) {
 }
 
 shorten_url <- function(long_url) {
-  req <- httr2::request("https://is.gd/create.php") |> 
-    httr2::req_url_query(format = "simple", url = long_url) |> 
+  if (!grepl("^https?://", long_url)) {
+    long_url <- paste0("https://", long_url)
+  }
+  
+  
+  req <- httr2::request("https://tinyurl.com/api-create.php?url=") |> 
+    httr2::req_url_query(url = long_url) |> 
     httr2::req_perform()
   
   return(httr2::resp_body_string(req))
