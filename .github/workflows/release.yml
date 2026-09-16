@@ -37,6 +37,7 @@ jobs:
       # wird der Pfad aus github.workspace abgeleitet.)
       FACTORY: ${{ github.workspace }}\..\_ctest_build
       R_VERSION: "4.5.3"
+      SNAPSHOT: "2026-08-01"
 
     steps:
       - name: Quellcode holen
@@ -53,10 +54,13 @@ jobs:
       - name: pandoc bereitstellen
         uses: r-lib/actions/setup-pandoc@v2
 
-      - name: Testpakete installieren
+      - name: Pakete fuer die Testsuite installieren
         shell: pwsh
         run: |
-          Rscript -e "install.packages(readLines('req_dev.txt'), repos = 'https://cloud.r-project.org')"
+          # Die Tests laden die App (global.R) und brauchen daher ALLE Pakete aus
+          # req.txt; req_dev.txt liefert testthat und withr dazu. Derselbe
+          # Snapshot wie im Setup, damit gleich gebaut und getestet wird.
+          Rscript -e "pkgs <- c(readLines('req.txt'), readLines('req_dev.txt')); pkgs <- trimws(pkgs[nzchar(trimws(pkgs))]); fehlend <- pkgs[!(pkgs %in% rownames(installed.packages()))]; cat('zu installieren:', if (length(fehlend)) paste(fehlend, collapse = ', ') else 'nichts', '\n'); if (length(fehlend)) install.packages(fehlend, repos = 'https://packagemanager.posit.co/cran/${{ env.SNAPSHOT }}')"
 
       - name: Testsuite
         shell: pwsh
@@ -97,9 +101,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.FACTORY }}\R\library
-          key: rlib-${{ runner.os }}-r${{ env.R_VERSION }}-snap2026-08-01-${{ hashFiles('req.txt') }}
+          key: rlib-${{ runner.os }}-r${{ env.R_VERSION }}-snap${{ env.SNAPSHOT }}-${{ hashFiles('req.txt') }}
           restore-keys: |
-            rlib-${{ runner.os }}-r${{ env.R_VERSION }}-snap2026-08-01-
+            rlib-${{ runner.os }}-r${{ env.R_VERSION }}-snap${{ env.SNAPSHOT }}-
 
       - name: Version bestimmen
         id: version
@@ -123,7 +127,7 @@ jobs:
       - name: Setup bauen
         shell: pwsh
         run: |
-          .\build\build_factory.ps1 -FactoryDir "$env:FACTORY" -Version "${{ steps.version.outputs.version }}" -RVersion "$env:R_VERSION"
+          .\build\build_factory.ps1 -FactoryDir "$env:FACTORY" -Version "${{ steps.version.outputs.version }}" -RVersion "$env:R_VERSION" -Snapshot "$env:SNAPSHOT"
 
       - name: Protokoll des Baus anzeigen
         shell: pwsh
