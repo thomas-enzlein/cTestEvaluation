@@ -31,17 +31,26 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 120
     env:
-      # Bewusst NICHT im Repository: robocopy /MIR spiegelt das Repository in
-      # den Auslieferungsordner - liegt der darin, spiegelt es in sich selbst.
-      # (Der runner-Context ist in env auf Job-Ebene nicht verfuegbar, daher
-      # wird der Pfad aus github.workspace abgeleitet.)
-      FACTORY: ${{ github.workspace }}\..\_ctest_build
       R_VERSION: "4.5.3"
       SNAPSHOT: "2026-08-01"
 
     steps:
       - name: Quellcode holen
         uses: actions/checkout@v4
+
+      # Auslieferungsordner festlegen. Zwei Bedingungen:
+      #   - ausserhalb des Repositories, sonst spiegelt robocopy /MIR das
+      #     Repository in sich selbst
+      #   - ohne ".." im Pfad, denn upload-artifact und cache verbieten
+      #     relative Pfadangaben
+      - name: Auslieferungsordner festlegen
+        id: factory
+        shell: pwsh
+        run: |
+          $pfad = Join-Path (Split-Path $env:GITHUB_WORKSPACE -Parent) "_ctest_build"
+          "FACTORY=$pfad" >> $env:GITHUB_ENV
+          "factory=$pfad" >> $env:GITHUB_OUTPUT
+          Write-Host "Auslieferungsordner: $pfad"
 
       # R und pandoc werden hier nur fuer die Testsuite gebraucht. Das Setup
       # bringt sein eigenes R und pandoc mit (build_factory.ps1).
@@ -100,7 +109,7 @@ jobs:
       - name: R-Paketbibliothek aus dem Cache
         uses: actions/cache@v4
         with:
-          path: ${{ env.FACTORY }}\R\library
+          path: ${{ steps.factory.outputs.factory }}\R\library
           key: rlib-${{ runner.os }}-r${{ env.R_VERSION }}-snap${{ env.SNAPSHOT }}-${{ hashFiles('req.txt') }}
           restore-keys: |
             rlib-${{ runner.os }}-r${{ env.R_VERSION }}-snap${{ env.SNAPSHOT }}-
@@ -140,7 +149,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ctest-setup-${{ steps.version.outputs.version }}
-          path: ${{ env.FACTORY }}\Output\*.exe
+          path: ${{ steps.factory.outputs.factory }}\Output\*.exe
           retention-days: 7
 
       - name: Release anlegen und Setup anhaengen
