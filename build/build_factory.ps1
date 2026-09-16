@@ -395,12 +395,17 @@ Info "ISCC: $isccExe"
 
 if (!(Test-Path $AusgabeOrdner)) { New-Item -ItemType Directory -Path $AusgabeOrdner | Out-Null }
 
+# Achtung: keine Anfuehrungszeichen INNERHALB der Argumente setzen. Windows
+# PowerShell 5.1 reicht sie durch, PowerShell 7 (GitHub-Runner) escaped sie -
+# beim Compiler kaeme dann ein kaputter Pfad an. Die Shell setzt die
+# Anfuehrungszeichen bei Pfaden mit Leerzeichen selbst.
 $isccArgumente = @(
     "/DMyAppVersion=$Version",
-    ('/DSrcDir="' + $FactoryDir + '"'),
-    ('/O"' + $AusgabeOrdner + '"'),
+    "/DSrcDir=$FactoryDir",
+    "/O$AusgabeOrdner",
     (Join-Path $PSScriptRoot "installer.iss")
 )
+Info "Aufruf: ISCC $($isccArgumente -join ' ')"
 & $isccExe @isccArgumente
 if ($LASTEXITCODE -ne 0) { Abbruch "Inno Setup brach mit Exitcode $LASTEXITCODE ab." }
 
