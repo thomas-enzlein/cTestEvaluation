@@ -44,25 +44,36 @@ test_that("gespeicherte tsv laesst sich unveraendert wieder laden", {
     expect_equal(geladen$`WE-%`, c(85, 70, 50))
     expect_equal(geladen$`R/F-Wert`, c(28, 22, 17))
     expect_equal(geladen$`R/F-%`, c(70, 55, 42.5))
-    expect_equal(as.character(geladen$`Kat.`), c("2B", "4C", "4D"))
+    expect_equal(geladen$`Kat.`, c("2B", "4C", "4D"))
     expect_equal(geladen$Empfehlung, as.character(df$Empfehlung))
-    expect_true(is.factor(geladen$`Kat.`))
-    expect_equal(levels(geladen$`Kat.`), lvls)
     expect_true(checkColumnNames(df, geladen))
   })
 })
 
 test_that("Nicht-Teilnehmer behalten ihre Kategorie beim Neuladen", {
-  skip(paste("Bekannter Fehler, Behebung in Paket D: loadData() liest die Spalte Kat.",
-             "als Faktor mit den 15 Kategorien; '0' (hat nicht teilgenommen) ist keine",
-             "davon und wird zu NA. Folgen: in der geladenen Tabelle fehlt die Kategorie,",
-             "create_letters() schreibt im Elternbrief nur ':' statt 'Ihr Kind hat leider",
-             "nicht teilgenommen.' und beim erneuten Speichern steht NA dauerhaft in der",
-             "tsv-Datei (in echten Exporten bereits sichtbar)."))
+  # frueher wurde Kat. als Faktor der 15 Kategorien gelesen; "0" faellt daraus
+  # heraus und wurde zu NA (Kategorie weg, im Elternbrief nur ":").
+  # Seit Paket D wird Kat. als Text gelesen - der Wert bleibt erhalten.
   df <- lade_fixture("klasse_5c.tsv")
-  expect_equal(as.character(df$`Kat.`[df$Name == "Probst, Ella"]), "0")
-  expect_equal(convert_kat_meaning(df$`Kat.`[df$Name == "Probst, Ella"]),
-               "0: Ihr Kind hat leider nicht teilgenommen.")
+  expect_equal(df$`Kat.`[df$Name == "Probst, Ella"], "0")
+  # die Zuordnung zum Elterntext funktioniert auch fuer "0"
+  # (convert_kat_meaning liest die Tabelle relativ zum Projektordner)
+  withr::with_dir(projekt_root, {
+    expect_equal(convert_kat_meaning(df$`Kat.`[df$Name == "Probst, Ella"]),
+                 "0: Ihr Kind hat leider nicht teilgenommen.")
+  })
+
+  # und der Wert ueberlebt den naechsten Speichervorgang
+  withr::with_tempdir({
+    file.copy(file.path(projekt_root, "template.docx"), "template.docx")
+    dir.create("Auswertungen")
+    saveData(df)
+    tsv <- list.files("Auswertungen", pattern = "\\.tsv$", full.names = TRUE)
+    wieder <- loadData(list(datapath = tsv, name = basename(tsv),
+                            size = file.size(tsv),
+                            type = "text/tab-separated-values"))
+    expect_equal(wieder$`Kat.`[wieder$Name == "Probst, Ella"], "0")
+  })
 })
 
 test_that("alte tsv-Dateien ohne Spalte Klasse werden konvertiert", {
@@ -72,9 +83,8 @@ test_that("alte tsv-Dateien ohne Spalte Klasse werden konvertiert", {
                c("Name", "Klasse", "WE-Wert", "WE-%", "R/F-Wert", "R/F-%", "Kat.", "Empfehlung"))
   expect_equal(nrow(df), 3)
   expect_true(all(df$Klasse == ""))
-  # Zeile 3: Kat. "0" (nicht teilgenommen) wird beim Laden zu NA - bekannter
-  # Fehler, siehe Test "Nicht-Teilnehmer behalten ihre Kategorie beim Neuladen"
-  expect_equal(as.character(df$`Kat.`), c("3D", "4C", NA))
+  # auch im Altformat bleibt "0" (nicht teilgenommen) erhalten
+  expect_equal(df$`Kat.`, c("3D", "4C", "0"))
   expect_equal(df$`WE-%`, c(60, 65, NA))
   expect_equal(df$`R/F-%`, c(60, 50, NA))
   expect_equal(df$Name[3], "Nichtmit, Carl")

@@ -18,11 +18,10 @@ if (!exists("stopApp", envir = globalenv(), inherits = FALSE)) {
   assign("stopApp", function(...) invisible(NULL), envir = globalenv())
 }
 
-# Das Objekt `js` legt normalerweise extendShinyjs() beim Aufbau der UI an.
-# Fuer die Server-Tests ohne UI hier ein Platzhalter mit derselben Schnittstelle.
-if (!exists("js", envir = globalenv(), inherits = FALSE)) {
-  assign("js", list(refocus = function(...) invisible(NULL)), envir = globalenv())
-}
+# Hinweis: frueher stand hier ein Platzhalter fuer das Objekt `js` aus
+# extendShinyjs(). Seit Paket F nutzt die App shinyjs::runjs() und braucht
+# kein `js` mehr - der Platzhalter hatte genau den Fehler verdeckt, den er
+# verhindern sollte (xfun exportiert ebenfalls ein `js`).
 
 # App-Code laden (idempotent): Pakete aus req.txt, Funktionen und Server.
 lade_app <- function() {
@@ -43,16 +42,15 @@ leere_tabelle <- function() {
                  `WE-%` = numeric(0),
                  `R/F-Wert` = numeric(0),
                  `R/F-%` = numeric(0),
-                 Kat. = factor(character(0), levels = lvls),
+                 Kat. = character(0),
                  Empfehlung = character(0))
 }
 
 # Eine tsv-Fixture so laden, wie es die App tut (ueber loadData())
 #
-# Warnungen werden unterdrueckt, weil die App dort zwei bekannte Faelle meldet:
-#  - readr "value in level set" fuer Kat. '0' (Nicht-Teilnehmer): bekannter
-#    Fehler, dokumentiert in test-datenrundlauf.R
-#  - ggplot "Removed ... non-finite": Nicht-Teilnehmer haben NA-Werte
+# Warnungen werden unterdrueckt, weil die App beim Zeichnen meldet, dass
+# Nicht-Teilnehmer (NA-Werte) aus Histogrammen/Dichten entfernt werden
+# (ggplot: "Removed ... non-finite").
 lade_fixture <- function(datei, klasse = NULL) {
   pfad <- fixture(datei)
   df <- suppressWarnings(

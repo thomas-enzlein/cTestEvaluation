@@ -12,12 +12,26 @@ brief_test_umgebung <- function(code) {
   })
 }
 
-# Briefe erzeugen; die Ausgabe von knitr/pandoc wird dabei unterdrueckt
+# Briefe erzeugen; die Ausgabe von knitr/pandoc wird dabei unterdrueckt.
+# Rueckgabe: Liste aus create_letters() (datei, erstellt, fehler)
 erzeuge_briefe <- function(df, lehrername, signatur = "", qrLink = NULL) {
-  invisible(utils::capture.output(
-    suppressMessages(create_letters(df, lehrername = lehrername,
-                                    signatur = signatur, qrLink = qrLink))
-  ))
+  ergebnis <- NULL
+  utils::capture.output(
+    suppressMessages(
+      ergebnis <- create_letters(df, lehrername = lehrername,
+                                 signatur = signatur, qrLink = qrLink)
+    )
+  )
+  ergebnis
+}
+
+# compose_letter voruebergehend ersetzen (Testdouble) und danach zurueckstellen.
+# bau_ersatz bekommt die echte Funktion und liefert den Ersatz.
+mit_compose_letter <- function(bau_ersatz, code) {
+  echt <- compose_letter
+  assign("compose_letter", bau_ersatz(echt), envir = globalenv())
+  on.exit(assign("compose_letter", echt, envir = globalenv()), add = TRUE)
+  force(code)
 }
 
 brief_text <- function(datei) {
@@ -78,6 +92,10 @@ test_that("fuer mehrere Kinder entsteht eine Datei mit einem Brief je Kind", {
 
   brief_test_umgebung({
     df <- lade_fixture("klasse_5c.tsv")[1:2, ]  # Anna (2B) und Ben (4C)
+
+    # Zustand der Briefvorlagen im Programmverzeichnis vorher merken
+    vorher <- sort(list.files("elternbrief", recursive = TRUE, all.files = TRUE, no.. = TRUE))
+
     erzeuge_briefe(df, lehrername = "Test, Tina", signatur = "Abteilungsleitung I")
 
     dateien <- erwartete_datei()
@@ -98,7 +116,69 @@ test_that("fuer mehrere Kinder entsteht eine Datei mit einem Brief je Kind", {
     expect_match(text2, "Beispiel, Ben", fixed = TRUE)
     expect_match(text2, "C4: ", fixed = TRUE)
     expect_match(text2, "Abteilungsleitung I", fixed = TRUE)
+
+    # Paket B: das Programmverzeichnis bleibt unberuehrt (kein knit.md usw.)
+    nachher <- sort(list.files("elternbrief", recursive = TRUE, all.files = TRUE, no.. = TRUE))
+    expect_equal(nachher, vorher)
+    expect_false(file.exists("elternbrief/elternbrief.knit.md"))
+    # die Arbeitskopie im Temp-Verzeichnis ist wieder aufgeraeumt. Windows gibt
+    # gesperrte Dateien manchmal erst verzoegert frei (Virenscanner, Cloud-Sync),
+    # deshalb bis zu einer Sekunde nachfassen, bevor der Test fehlschlaegt.
+    kopie <- file.path(tempdir(), paste0("elternbrief_", Sys.getpid()))
+    for (i in 1:10) {
+      if (!dir.exists(kopie)) break
+      Sys.sleep(0.1)
+    }
+    expect_false(dir.exists(kopie))
   })
+})
+
+test_that("elternbrief_vorbereiten kopiert die Vorlagen in ein Temp-Verzeichnis", {
+  vorlage <- elternbrief_vorbereiten(file.path(projekt_root, "elternbrief"))
+  on.exit(unlink(vorlage, recursive = TRUE), add = TRUE)
+
+  expect_true(dir.exists(vorlage))
+  expect_setequal(list.files(vorlage), list.files(file.path(projekt_root, "elternbrief")))
+  for (datei in c("elternbrief.Rmd", "ergebnisse.xlsx", "table.png", "_output.yml")) {
+    expect_true(file.exists(file.path(vorlage, datei)))
+  }
+  # Arbeitskopie liegt im Temp-Verzeichnis und damit ausserhalb des
+  # Projektordners, damit dort nichts geschrieben wird. Bei umgeleitetem TMPDIR
+  # (z. B. in einer Sandbox) kann tempdir() selbst im Projekt liegen - dann
+  # entfaellt die zweite Pruefung, weil sie die Umgebung statt den Code testet.
+  expect_true(startsWith(normalizePath(vorlage), normalizePath(tempdir())))
+  if (!startsWith(normalizePath(tempdir()), normalizePath(projekt_root))) {
+    expect_false(startsWith(normalizePath(vorlage), normalizePath(projekt_root)))
+  }
+})
+
+test_that("vorlagen_aufraeumen loescht die Arbeitskopie und meldet Erfolg", {
+  ziel <- file.path(tempdir(), paste0("aufraeumen_", Sys.getpid()))
+  dir.create(file.path(ziel, "unterordner"), recursive = TRUE, showWarnings = FALSE)
+  writeLines("rest", file.path(ziel, "rest.txt"))
+
+  expect_true(vorlagen_aufraeumen(ziel))
+  expect_false(dir.exists(ziel))
+  # nichts zu loeschen ist kein Fehler (on.exit laeuft immer)
+  expect_true(vorlagen_aufraeumen(ziel))
+})
+
+test_that("eine liegen gebliebene Arbeitskopie wird ersetzt", {
+  # Reste aus einem abgebrochenen Lauf duerfen den naechsten nicht blockieren
+  ziel <- file.path(tempdir(), paste0("elternbrief_", Sys.getpid()))
+  dir.create(ziel, recursive = TRUE, showWarnings = FALSE)
+  writeLines("alt", file.path(ziel, "alt.txt"))
+
+  vorlage <- elternbrief_vorbereiten(file.path(projekt_root, "elternbrief"))
+  on.exit(vorlagen_aufraeumen(ziel), add = TRUE)
+
+  expect_equal(normalizePath(vorlage), normalizePath(ziel))
+  expect_false(file.exists(file.path(ziel, "alt.txt")))
+  expect_true(file.exists(file.path(ziel, "elternbrief.Rmd")))
+})
+
+test_that("elternbrief_vorbereiten meldet fehlende Vorlagen", {
+  expect_error(elternbrief_vorbereiten(file.path(tempdir(), "gibt_es_nicht")), "nicht gefunden")
 })
 
 test_that("ohne Link entsteht kein QR-Code und der Brief bleibt fehlerfrei", {
@@ -106,14 +186,58 @@ test_that("ohne Link entsteht kein QR-Code und der Brief bleibt fehlerfrei", {
 
   brief_test_umgebung({
     df <- lade_fixture("klasse_5c.tsv")[1, ]
-    expect_no_error(erzeuge_briefe(df, lehrername = "Test, Tina", qrLink = NULL))
+    ergebnis <- erzeuge_briefe(df, lehrername = "Test, Tina", qrLink = NULL)
+
+    expect_equal(ergebnis$erstellt, 1)
+    expect_length(ergebnis$fehler, 0)
 
     dateien <- erwartete_datei()
     expect_length(dateien, 1)
     text <- brief_text(dateien)
     expect_false(grepl("tinyurl", text))
     expect_false(grepl("Sie möchten Ihr Kind unterstützen", text))
-    # Hinweis: pandoc meldet fuer die leere Bildreferenz des QR-Codes
-    # "[WARNING] Could not fetch resource" - kosmetisch, kein Fehler.
+  })
+})
+
+test_that("ein fehlerhafter Brief verhindert die uebrigen nicht", {
+  skip_if_not(rmarkdown::pandoc_available(), "pandoc nicht gefunden")
+
+  brief_test_umgebung({
+    df <- lade_fixture("klasse_5c.tsv")[1:2, ]   # Anna und Ben
+
+    ergebnis <- mit_compose_letter(
+      function(echt) {
+        function(name, ...) {
+          if (identical(name, "Beispiel, Ben")) stop("Testfehler beim Rendern")
+          echt(name, ...)
+        }
+      },
+      erzeuge_briefe(df, lehrername = "Test, Tina")
+    )
+
+    # Anna wurde erstellt, Ben nicht - die Datei existiert trotzdem und ist nutzbar
+    expect_equal(ergebnis$erstellt, 1)
+    expect_length(ergebnis$fehler, 1)
+    expect_match(ergebnis$fehler, "Beispiel, Ben", fixed = TRUE)
+    expect_match(ergebnis$fehler, "Testfehler beim Rendern", fixed = TRUE)
+
+    expect_true(file.exists(ergebnis$datei))
+    text <- brief_text(ergebnis$datei)
+    expect_match(text, "Testmann, Anna", fixed = TRUE)
+    expect_false(grepl("Beispiel, Ben", text))
+  })
+})
+
+test_that("scheitern alle Briefe, gibt es einen klaren Fehler", {
+  brief_test_umgebung({
+    df <- lade_fixture("klasse_5c.tsv")[1:2, ]
+    fehlermeldung <- mit_compose_letter(
+      function(echt) function(...) stop("kein Rendern moeglich"),
+      tryCatch(erzeuge_briefe(df, lehrername = "Test, Tina"),
+               error = function(e) conditionMessage(e))
+    )
+    expect_match(fehlermeldung, "kein Elternbrief erstellt werden")
+    expect_match(fehlermeldung, "kein Rendern moeglich")
+    expect_length(erwartete_datei(), 0)
   })
 })

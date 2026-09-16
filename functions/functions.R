@@ -1,5 +1,8 @@
 composeClass <- function(klassenstufe, klassenBuchstabe) {
-  if(is.na(klassenstufe) | nchar(klassenBuchstabe) == 0) {
+  # ohne Stufe UND ohne Buchstabe gibt es keine Klasse: sonst entstuende z. B.
+  # nur "c" (ohne Jahrgang) - im Elternbrief waere das "der NA. Klasse"
+  leer <- function(x) length(x) == 0 || is.na(x) || !nzchar(trimws(as.character(x)))
+  if(leer(klassenstufe) || leer(klassenBuchstabe)) {
     return(NULL)
   }
   
@@ -126,15 +129,106 @@ styleTable <- function(dt) {
   return(dt)
 }
 
-# refocus js-function
-jscode <- "
-shinyjs.refocus = function(e_id) {
-  document.getElementById(e_id).focus();
-}"
+#### Ausgabeordner ####
+# Die App kann als installierte Anwendung unter C:/ProgramData liegen. Dort
+# darf ein normaler Benutzer (Lehrkraft) nicht in jedem Fall schreiben.
+# Deshalb: Ausgabeordner im Programmverzeichnis anlegen und nur benutzen,
+# wenn er wirklich beschreibbar ist - sonst auf den Benutzerordner ausweichen.
 
-# Dateipfad erstellen
+# Zwischenspeicher fuer den einmal ermittelten Ausgabeordner
+.ctest_env <- new.env(parent = emptyenv())
+
+# Prueft, ob ein Verzeichnis existiert (legt es an) und beschreibbar ist
+verzeichnis_sicherstellen <- function(pfad) {
+  if (is.null(pfad) || !nzchar(pfad)) return(FALSE)
+  if (!dir.exists(pfad)) {
+    dir.create(pfad, recursive = TRUE, showWarnings = FALSE)
+  }
+  if (!dir.exists(pfad)) return(FALSE)
+
+  # echter Schreibtest, weil Verzeichnisrechte unter Windows sonst taeuschen
+  probe <- file.path(pfad, paste0(".schreibtest_", Sys.getpid()))
+  ok <- suppressWarnings(file.create(probe))
+  if (isTRUE(ok)) unlink(probe)
+  isTRUE(ok)
+}
+
+# Benutzerordner als Ausweichziel (Dokumente des angemeldeten Benutzers)
+benutzer_ausgabeordner <- function() {
+  basis <- getOption("ctest.outdir.fallback")
+  if (is.null(basis)) {
+    basis <- ""
+    if (.Platform$OS.type == "windows") {
+      profil <- Sys.getenv("USERPROFILE")
+      kandidaten <- file.path(profil, c("Documents", "Dokumente"))
+      vorhanden <- kandidaten[dir.exists(kandidaten)]
+      if (length(vorhanden) > 0) basis <- vorhanden[1]
+      else if (nzchar(profil)) basis <- profil
+    }
+    if (!nzchar(basis)) basis <- path.expand("~")
+  }
+  file.path(basis, "C-Test Auswertung")
+}
+
+# Ausgabeordner bestimmen: Vorgabe (Option) > Programmordner > Benutzerordner
+ctest_ausgabeordner <- function(neu = FALSE) {
+  vorgabe <- getOption("ctest.outdir")
+  if (!is.null(vorgabe)) {
+    if (!verzeichnis_sicherstellen(vorgabe)) {
+      stop("Ausgabeordner '", vorgabe, "' kann nicht angelegt werden. ",
+           "Bitte Option ctest.outdir pruefen.", call. = FALSE)
+    }
+    return(vorgabe)
+  }
+
+  programmordner <- file.path(getwd(), "Auswertungen")
+
+  # Zwischenspeicher nur nutzen, wenn er zum aktuellen Programmordner passt
+  if (!neu && !is.null(.ctest_env$outdir) &&
+      identical(.ctest_env$programmordner, programmordner)) {
+    return(.ctest_env$outdir)
+  }
+
+  .ctest_env$programmordner <- programmordner
+
+  if (verzeichnis_sicherstellen(programmordner)) {
+    .ctest_env$outdir <- programmordner
+    return(programmordner)
+  }
+
+  benutzerordner <- benutzer_ausgabeordner()
+  if (verzeichnis_sicherstellen(benutzerordner)) {
+    message("Programmordner ist nicht beschreibbar - Ausgaben gehen nach: ", benutzerordner)
+    .ctest_env$outdir <- benutzerordner
+    return(benutzerordner)
+  }
+
+  stop("Es wurde kein beschreibbarer Ausgabeordner gefunden. Bitte pruefen, ",
+       "ob Schreibrechte fuer '", programmordner, "' oder '", benutzerordner,
+       "' bestehen.", call. = FALSE)
+}
+
+# Fuer Tests: zwischengespeicherten Ordner vergessen
+ausgabeordner_zuruecksetzen <- function() {
+  for (eintrag in c("outdir", "programmordner")) {
+    if (exists(eintrag, envir = .ctest_env, inherits = FALSE)) {
+      rm(list = eintrag, envir = .ctest_env)
+    }
+  }
+  invisible(TRUE)
+}
+
+# Fuer Tests: zwischengespeicherten Kurzlink vergessen
+kurzlink_zuruecksetzen <- function() {
+  if (exists("tinyLink", envir = .ctest_env, inherits = FALSE)) {
+    rm("tinyLink", envir = .ctest_env)
+  }
+  invisible(TRUE)
+}
+
+# Dateipfad erstellen (Ordner wird angelegt und auf Schreibbarkeit geprueft)
 createFilePath <- function(filename, extension) {
-  outpath <-  file.path(getwd(), "Auswertungen")
+  outpath <- ctest_ausgabeordner()
   if(is.null(filename)) {
     return(outpath)
   }
@@ -234,7 +328,7 @@ addEntry <- function(df, name, klasse, rf, we, numItems) {
   return(df)
 }
 
-saveData <- function(df) {
+saveData <- function(df, vergleich = NULL) {
   fn <- paste0("C-Test_Auswertung_", Sys.Date())
   
   if("Klasse" %in% colnames(df)) {
@@ -258,7 +352,51 @@ saveData <- function(df) {
   
   msgs <- paste0("Daten gespeichert unter ", createFilePath(NULL, ""))
   
+  # Vergleichstabelle (zwei Stufen, mindestens ein zugeordnetes Kind) anhaengen
+  if(!is.null(vergleich) && nrow(vergleich) > 0) {
+    msgs <- paste0(msgs, vergleich_anhaengen(createFilePath(fn, "xlsx"),
+                                             createFilePath(fn, "docx"),
+                                             vergleich))
+  }
+  
   return(msgs)
+}
+
+# Vergleichstabelle als zweites Blatt im Excel und als Anhang im Word ablegen.
+# Fehler dabei duerfen das Speichern nicht scheitern lassen (Hauptdaten sind
+# bereits geschrieben) - deshalb nur Meldungen.
+vergleich_anhaengen <- function(xlsx_datei, docx_datei, vergleich) {
+  hinweis <- paste0(" (inkl. Vergleichstabelle mit ", nrow(vergleich), " Kindern)")
+
+  tryCatch({
+    wb <- openxlsx::loadWorkbook(xlsx_datei)
+    openxlsx::addWorksheet(wb, "Vergleich")
+    openxlsx::writeData(wb, sheet = "Vergleich", x = vergleich, colNames = TRUE)
+    openxlsx::addStyle(wb, sheet = "Vergleich",
+                       style = openxlsx::createStyle(textDecoration = "bold"),
+                       rows = 1, cols = seq_len(ncol(vergleich)), stack = TRUE)
+    openxlsx::saveWorkbook(wb, xlsx_datei, overwrite = TRUE)
+  }, error = function(e) {
+    message("Vergleichsblatt im Excel konnte nicht ergaenzt werden: ",
+            conditionMessage(e))
+  })
+
+  tryCatch({
+    doc <- officer::read_docx(docx_datei)
+    doc <- officer::body_add_break(doc)
+    # ohne Word-Stil (die Vorlage kennt "heading 1" nicht) - stattdessen fett
+    doc <- officer::body_add_fpar(doc, officer::fpar(
+      officer::ftext("Vergleich je Kind (zwei Stufen)",
+                     officer::fp_text(bold = TRUE, font.size = 14))))
+    ft <- tabelle_infobrief(vergleich, farb_spalten = c("\u0394 WE", "\u0394 R/F"))
+    if(!is.null(ft)) doc <- flextable::body_add_flextable(doc, value = ft)
+    print(doc, target = docx_datei)
+  }, error = function(e) {
+    message("Anhang im Word-Dokument konnte nicht ergaenzt werden: ",
+            conditionMessage(e))
+  })
+
+  return(hinweis)
 }
 
 checkInputFile <- function(inputFile) {
@@ -270,7 +408,8 @@ checkInputFile <- function(inputFile) {
 }
 
 loadData <- function(inputFile) {
-  raw <- read_tsv(checkInputFile(inputFile), show_col_types = FALSE)
+  pfad <- checkInputFile(inputFile)
+  raw <- read_tsv(pfad, show_col_types = FALSE)
   if(!"Klasse" %in% colnames(raw)) {
     message("Old .tsv file detected, converting to new format.")
     new_df <- raw %>%
@@ -289,20 +428,22 @@ loadData <- function(inputFile) {
              `WE-%` = as.numeric(`WE-%`),
              `R/F-Wert` = as.numeric(`R/F-Wert`),
              `R/F-%` = as.numeric(`R/F-%`),
-             `Kat.` = factor(`Kat.`, levels = lvls),
+             # Kat. bewusst als Text: "0" (hat nicht teilgenommen) ist keine
+             # der 15 Kategorien und wurde als Faktor zu NA (Datenverlust)
+             `Kat.` = as.character(`Kat.`),
              Empfehlung = as.character(Empfehlung))
     return(new_df)
   }
   
   new_df <- read_tsv(
-    checkInputFile(inputFile), 
+    pfad,
     col_types = list(col_character(),
                      col_character(),
                      col_number(),
                      col_number(),
                      col_number(),
                      col_number(),
-                     col_factor(levels = lvls),
+                     col_character(),
                      col_character()), 
     col_select = c(Name,
                    Klasse, 
@@ -325,108 +466,196 @@ convert_kat_meaning <- function(kat, table_path = "elternbrief/ergebnisse.xlsx")
   return(paste0(df$kat_ext[idx], ": ", df$bedeutung[idx]))
 }
 
-compose_letter <- function(name, klasse, kat, lehrername, signatur, qrLink, output = NULL) {
-  # all variables are processed in elternbrief.Rmd!
-  kat <- convert_kat_meaning(kat)
-  
-  rmarkdown::render("elternbrief/elternbrief.Rmd", output_file = output)
+# Arbeitskopie der Vorlagen in einem temporaeren Verzeichnis.
+# Beim Rendern schreibt rmarkdown die Datei <name>.knit.md neben das Rmd.
+# Damit dabei nichts im Programmverzeichnis geschrieben wird (installierte App,
+# normaler Benutzer), wird aus der Kopie heraus gerendert.
+
+# Arbeitskopie loeschen. Windows gibt gesperrte Dateien manchmal erst kurz
+# verzoegert frei (Virenscanner, Cloud-Sync, Indizierung); unlink() scheitert
+# dann still und der Ordner bleibt liegen. Deshalb ein paar Versuche mit kurzer
+# Pause. Ein Rest im Temp-Verzeichnis ist harmlos - nur das Anlegen einer neuen
+# Kopie unter derselben Prozessnummer wuerde daran scheitern.
+vorlagen_aufraeumen <- function(ziel, versuche = 3, pause = 0.2) {
+  for (versuch in seq_len(versuche)) {
+    unlink(ziel, recursive = TRUE)
+    if (!dir.exists(ziel)) return(invisible(TRUE))
+    if (versuch < versuche) Sys.sleep(pause)
+  }
+  invisible(FALSE)
 }
 
-combine_letters <- function(rdocx, temp_path, out_path) {
-  rdocx <- 
-    rdocx %>% 
-    officer::body_add_break() %>% 
-    officer::body_add_docx(temp_path)  
-  
+vorlagen_vorbereiten <- function(quelle, praefix) {
+  if (!dir.exists(quelle)) {
+    stop("Vorlagen nicht gefunden: '", quelle, "'", call. = FALSE)
+  }
+  ziel <- file.path(tempdir(), paste0(praefix, "_", Sys.getpid()))
+  if (dir.exists(ziel)) vorlagen_aufraeumen(ziel)
+  if (!dir.create(ziel, recursive = TRUE, showWarnings = FALSE)) {
+    stop("Temporaeres Arbeitsverzeichnis konnte nicht angelegt werden.", call. = FALSE)
+  }
+  dateien <- list.files(quelle, full.names = TRUE)
+  kopiert <- file.copy(dateien, ziel, recursive = TRUE)
+  if (!all(kopiert)) {
+    stop("Vorlagen konnten nicht kopiert werden.", call. = FALSE)
+  }
+  return(ziel)
+}
+
+elternbrief_vorbereiten <- function(quelle = file.path(getwd(), "elternbrief")) {
+  vorlagen_vorbereiten(quelle, "elternbrief")
+}
+
+# Zwischendateien von knitr aus der Arbeitskopie entfernen
+knit_reste_entfernen <- function(vorlage) {
+  rest <- file.path(vorlage, "elternbrief.knit.md")
+  if (fs::file_exists(rest)) fs::file_delete(rest)
+  invisible(TRUE)
+}
+
+compose_letter <- function(name, klasse, kat, lehrername, signatur = "",
+                           qrLink = NULL,
+                           output = NULL, vorlage = elternbrief_vorbereiten()) {
+  # all variables are processed in elternbrief.Rmd!
+  # (name, klasse, kat, lehrername, signatur, qrLink liegen in diesem Frame;
+  #  rmarkdown::render() wertet das Rmd darin aus)
+  kat <- convert_kat_meaning(kat, table_path = file.path(vorlage, "ergebnisse.xlsx"))
+
+  rmarkdown::render(file.path(vorlage, "elternbrief.Rmd"), output_file = output)
+}
+
+# Weitere Briefe/Texte an ein Dokument anhaengen. umbruch = FALSE laesst den
+# Seitenumbruch weg (fuer den Infobrief, damit Seite 1 nicht halb leer bleibt).
+combine_letters <- function(rdocx, temp_path, out_path = NULL, umbruch = TRUE) {
+  if (isTRUE(umbruch)) rdocx <- officer::body_add_break(rdocx)
+  rdocx <- officer::body_add_docx(rdocx, temp_path)
   return(rdocx)
 }
 
-shorten_url <- function(long_url) {
+# Link ueber tinyurl kuerzen. Ohne Internet (oder bei Fehlern) wird NULL
+# zurueckgegeben - der Aufrufer arbeitet dann mit dem Originallink weiter.
+# Erfolgreiche Kuerzungen werden zwischengespeichert, weil tinyurl die Anzahl
+# der Anfragen begrenzt.
+shorten_url <- function(long_url, timeout_sek = 5) {
+  if (is.null(long_url) || !nzchar(long_url)) return(NULL)
   if (!grepl("^https?://", long_url)) {
     long_url <- paste0("https://", long_url)
   }
-  
-  
-  req <- httr2::request("https://tinyurl.com/api-create.php?url=") |> 
-    httr2::req_url_query(url = long_url) |> 
-    httr2::req_perform()
-  
-  return(httr2::resp_body_string(req))
+
+  zwischengespeichert <- .ctest_env$tinyLink
+  if (!is.null(zwischengespeichert) && identical(zwischengespeichert$raw, long_url)) {
+    return(zwischengespeichert$link)
+  }
+
+  kurz <- tryCatch({
+    req <- httr2::request("https://tinyurl.com/api-create.php") |>
+      httr2::req_url_query(url = long_url) |>
+      httr2::req_timeout(timeout_sek) |>
+      httr2::req_perform()
+    httr2::resp_body_string(req)
+  }, error = function(e) NULL)
+
+  # tinyurl antwortet bei Problemen mit einer Fehlermeldung statt einer URL
+  if (is.null(kurz) || !is.character(kurz) || !grepl("^https?://", kurz)) {
+    message("Link konnte nicht gekuerzt werden (kein Internet?). ",
+            "Es wird der Originallink verwendet.")
+    return(NULL)
+  }
+
+  .ctest_env$tinyLink <- list(link = kurz, raw = long_url)
+  return(kurz)
 }
 
 generate_qrcode <- function(qrLink) {
-  if(!is.null(qrLink)) {
-    if(isTruthy(qrLink)) {
-      
-      # first check if global object tinyLink is already present
-      # this is because tinyurl.com will answer a limited number of requests
-      if(!exists("tinyLink")) {
-        tinyLink <<- list(link = shorten_url(qrLink),
-                          raw = qrLink)
-      } else {
-        # if url is different, generate a new tinyLink
-        if(tinyLink$raw != qrLink) {
-          tinyLink <<- list(link = shorten_url(qrLink),
-                            raw = qrLink)
-        }
-      }
-      
-      
-      linkText <- paste("Sie möchten Ihr Kind unterstützen?\nDann schauen Sie hier in unsere Sammlung:", tinyLink$link)
-      qr <- qr_code(qrLink, ecl = "M")
-      qr_tmp <- tempfile(fileext = ".png")
-      
-      png(filename = qr_tmp)
-      plot(qr)
-      dev.off()
-      
-      return(list(img = qr_tmp,
-                  txt = linkText))
-    }}
-  return(NA)
+  if (is.null(qrLink) || !isTruthy(qrLink)) return(NA)
+
+  # QR-Code immer aus dem Originallink erzeugen - das braucht kein Internet
+  qr <- qr_code(qrLink, ecl = "M")
+  qr_tmp <- tempfile(fileext = ".png")
+  png(filename = qr_tmp)
+  plot(qr)
+  dev.off()
+
+  # Verweis auf die Uebungssammlung: mit Kurzlink, wenn das moeglich ist
+  kurz <- shorten_url(qrLink)
+  ziel <- if (is.null(kurz)) qrLink else kurz
+  linkText <- paste("Sie möchten Ihr Kind unterstützen?",
+                    "Dann schauen Sie hier in unsere Sammlung:", ziel,
+                    sep = "\n")
+
+  return(list(img = qr_tmp,
+              txt = linkText))
 }
 
-create_letters <- function(df, lehrername, signatur, qrLink) {
+create_letters <- function(df, lehrername, signatur = "", qrLink = NULL) {
   
   df <- janitor::clean_names(df) %>%
     mutate(kat = str_remove(kat, pattern = "\\*"))
   
-  if(fs::file_exists("elternbrief/elternbrief.knit.md")) {
-    fs::file_delete("elternbrief/elternbrief.knit.md")
-  }
+  # Ausgabeordner frueh pruefen und anlegen: fehlende Schreibrechte sollen
+  # sofort gemeldet werden und nicht erst nach dem Rendern aller Briefe
+  ziel_ordner <- createFilePath(NULL, "")
+
+  # aus einer Arbeitskopie im Temp-Verzeichnis rendern, damit im
+  # Programmverzeichnis nichts geschrieben wird (installierte App)
+  vorlage <- elternbrief_vorbereiten()
+  on.exit(vorlagen_aufraeumen(vorlage), add = TRUE)
+  knit_reste_entfernen(vorlage)
   
-  for(i in 1:dim(df)[1]) {
+  # Ein Fehler bei einem Kind darf die restlichen Briefe nicht verhindern:
+  # Fehler werden gesammelt und am Ende gemeldet.
+  brief_pfade <- character(0)
+  fehler <- character(0)
+
+  for(i in seq_len(dim(df)[1])) {
     tmp <- tempfile(fileext = ".docx")
     message("Composing letter for ",  df$name[i], " ", i, "/", dim(df)[1])
-    compose_letter(name = df$name[i], 
-                   klasse = parse_number(df$klasse[i]), 
-                   kat = df$kat[i], 
-                   lehrername = lehrername, 
-                   signatur = signatur,
-                   output = tmp,
-                   qrLink = qrLink)
-    
-    if(i == 1) {
-      rdocx <- officer::read_docx(tmp) 
-      next()
-    } 
-    
-    rdocx <- combine_letters(rdocx, temp_path = tmp)
-    
-    if(i > 1 & fs::file_exists("elternbrief/elternbrief.knit.md")) {
-      fs::file_delete("elternbrief/elternbrief.knit.md")
-    }
+    ok <- tryCatch({
+      compose_letter(name = df$name[i],
+                     klasse = parse_number(df$klasse[i]),
+                     kat = df$kat[i],
+                     lehrername = lehrername,
+                     signatur = signatur,
+                     output = tmp,
+                     qrLink = qrLink,
+                     vorlage = vorlage)
+      TRUE
+    }, error = function(e) {
+      fehler <<- c(fehler, paste0(df$name[i], ": ", conditionMessage(e)))
+      message("Elternbrief fuer ", df$name[i], " konnte nicht erstellt werden: ",
+              conditionMessage(e))
+      FALSE
+    })
+
+    if (ok) brief_pfade <- c(brief_pfade, tmp)
+    knit_reste_entfernen(vorlage)
+  }
+
+  if(length(brief_pfade) == 0) {
+    stop("Es konnte kein Elternbrief erstellt werden. ",
+         paste(utils::head(fehler, 3), collapse = " | "), call. = FALSE)
+  }
+
+  # Briefe zu einer Datei zusammenfuegen (erster Brief direkt, weitere als
+  # eingebettete Dokumente)
+  rdocx <- officer::read_docx(brief_pfade[1])
+  for(pfad in brief_pfade[-1]) {
+    rdocx <- combine_letters(rdocx, temp_path = pfad)
   }
   
-  fn <- paste0(createFilePath(NULL, ""),"/Elternbriefe_", Sys.Date())
+  fn <- file.path(ziel_ordner, paste0("Elternbriefe_", Sys.Date()))
   
   if("klasse" %in% colnames(df)) {
     kl <- paste0(unique(df$klasse), collapse = "_")
     fn <- paste0(fn, "_", kl)
   }
-  cat("saved letters to", fn)
-  rdocx %>%
-    print(paste0(fn, ".docx"))
+  zieldatei <- paste0(fn, ".docx")
+  message("Elternbriefe gespeichert unter: ", zieldatei)
+  print(rdocx, target = zieldatei)
+
+  return(list(datei = zieldatei,
+              erstellt = length(brief_pfade),
+              fehler = fehler))
 }
 
 

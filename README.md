@@ -37,3 +37,25 @@ A left-hand menu (illustrated within the app) allows users to access different f
 In the "Add Student" subsection, educators can swiftly enter and compile student data, setting up the number of test items and adjusting class settings as required.
 The overview table not only summarizes the data but also provides sorting functionality to help educators identify students needing the most support.
 
+
+## Lehrkraefte-Infobrief (Entwicklung ueber zwei Jahrgaenge)
+
+Fuer den Vergleich zweier Jahrgaenge (z. B. 5c und 6c) gibt es den Tab **Infobrief**:
+
+- links im Menue das Stufenpaar waehlen (gesperrt, solange keine zwei Jahrgaenge geladen sind)
+- die Zuordnung der Kinder zum Vorjahr pruefen und offene Vorschlaege bestaetigen oder trennen
+- Entscheidungen werden als `zuordnung_<Datei1>_<Datei2>.tsv` im Auswertungsordner gespeichert und wiederverwendet
+- der Brief fasst Mittelwerte/Mediane je Stufe, Kinder unter dem Normbereich, Verbesserungen und Rueckgaenge zusammen (ein Abschnitt je Klassenbuchstabe)
+
+Das Entwicklungsdiagramm im Tab Statistik nutzt dieselbe Zuordnung.
+
+## Tests
+
+Die Testsuite liegt in `tests/` und ist nicht Teil der installierten App:
+
+```
+install.packages(readLines("req_dev.txt"))
+Rscript tests/run_tests.R
+```
+
+Sie deckt Rechenkern, tsv-Rundlauf, Word/Excel-Export, Elternbrief- und Infobrief-Erzeugung, App-Ablaeufe ohne Browser, Schreibrechte, Offline-Verhalten und die Namensaufloesung (Paket-Verdeckungen) ab.

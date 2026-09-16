@@ -1,0 +1,25 @@
+\newpage
+
+## Hinweise
+
+```{r, echo=FALSE, results='asis'}
+if (length(d$hinweise) > 0) {
+  for (h in d$hinweise) cat("- ", h, "\n", sep = "")
+} else {
+  cat("Es gibt keine offenen Punkte.\n")
+}
+```
+
+Hinweis: Ausgewertet werden nur Kinder, für die zwei Messungen vorliegen. Die Empfehlungen dienen als erste Orientierung und sollten bei Bedarf mit weiteren diagnostischen Werkzeugen abgesichert werden.
+
+Mit freundlichen Grüßen,
+
+`r d$absender`
+
+\newpage
+
+## Anhang: Vergleich je Kind
+
+```{r, echo=FALSE}
+if (!is.null(d$lesetabelle)) tabelle_lese(d$lesetabelle)
+```

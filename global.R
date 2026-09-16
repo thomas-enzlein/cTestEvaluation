@@ -7,7 +7,10 @@ lapply(req, function(x) {
           character.only = TRUE)
 })
 
-# Farben und Levels für Kat. 
+# Farben und Levels für Kat.
+# Hinweis: "5C" wird von getWElevel() nicht erzeugt (theoretisch unerreichbar),
+# bleibt aber in der Liste, weil aeltere tsv-Dateien den Wert enthalten koennen.
+# Ein Entfernen wuerde diese Eintraege beim Laden verlieren.
 cols <-c('darkgreen', 'darkgreen',
          'lightgreen', 'lightgreen',
          '#FFA500', '#CD8500', '#FFA500', 
@@ -21,8 +24,9 @@ lvls <- c("1A", "1B",
           "5C", "5C*", "5D", "5E")
 
 source("functions/functions.R")
+source("functions/cohort.R")
+source("functions/infobrief.R")
 source("functions/plot_functions.R")
 source("functions/table2doc_.R")
 source("functions/table2spreadsheet_.R")
-source("functions/fuzzyMatch.R")
 

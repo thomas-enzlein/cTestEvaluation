@@ -50,6 +50,12 @@ Die folgende Tabelle gibt einen Überblick über die möglichen Ergebnisse des C
 qr <- generate_qrcode(qrLink)
 ```
 
-`r if(!is.na(qr[[1]])) {qr$txt}`
+```{r, echo=FALSE, results='asis'}
+# Hinweistext nur, wenn ein Link angegeben wurde
+if (!is.na(qr[[1]])) cat(qr$txt, "\n")
+```
 
-![](`r if(!is.na(qr[[1]])) {qr$img}`){width=25%}
+```{r, echo=FALSE, out.width="25%"}
+# QR-Code nur, wenn ein Link angegeben wurde (sonst keine leere Bildreferenz)
+if (!is.na(qr[[1]])) knitr::include_graphics(qr$img)
+```

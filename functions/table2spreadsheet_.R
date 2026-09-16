@@ -1,16 +1,19 @@
 setExcelBackgroundColor <- function(wb, df, colors, levels, sheetName) {
   stopifnot(length(colors) == length(levels))
   
-  len <- length(df$Kat.) + 1
+  # Zeile 1 ist die Kopfzeile, die Daten beginnen in Zeile 2
+  zeilen <- seq_len(length(df$Kat.)) + 1
   
   for(i in seq_along(levels)) {
     st <- openxlsx::createStyle(fontColour = "black", bgFill = colors[i])
+    # exakter Vergleich statt "contains": sonst faerbt die Regel "3C" auch
+    # die Zelle "3C*" (je nach Reihenfolge der Regeln)
     openxlsx::conditionalFormatting(wb, 
                           sheet = sheetName,
                           cols = 7, # kat col 
-                          rows = 1:len, 
-                          type = "contains",
-                          rule = levels[i], 
+                          rows = zeilen, 
+                          type = "expression",
+                          rule = paste0('$G2="', levels[i], '"'), 
                           style = st
     )
   }

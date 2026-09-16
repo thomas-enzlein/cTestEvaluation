@@ -147,3 +147,100 @@ test_that("Diagrammtyp Entwicklung zeichnet beide Diagramme", {
     expect_false(isTRUE(grepl("Gestrichelte", als_text(output$dynamicText))))
   })
 })
+
+test_that("Schreibfehler werden in der App gemeldet (kein stiller Abbruch)", {
+  withr::with_tempdir({
+    # Ausgabeordner unbrauchbar machen: "blocker" ist eine Datei
+    writeLines("blockiert", "blocker")
+    withr::with_options(list(ctest.outdir = file.path(getwd(), "blocker", "x")), {
+      shiny::testServer(server, {
+        session$setInputs(numItems = "40", klassenstufe = "5", klBuchstabe = "c",
+                          cbWEDiff = FALSE, cbAllCombined = TRUE, siPlotType = "Histogramm")
+        session$setInputs(schuelerName = "Testmann, Anna", weWert = 34, rfWert = 28,
+                          btHinzufuegen = 1)
+        expect_equal(nrow(rv$df), 1)
+
+        # Speichern
+        expect_no_error(session$setInputs(btSpeichern = 1))
+        expect_match(als_text(output$text), "Fehler beim Speichern", fixed = TRUE)
+        expect_match(als_text(output$text), "kann nicht angelegt werden", fixed = TRUE)
+
+        # Elternbriefe
+        session$setInputs(lehrername = "Test, Tina", btBrief = 1)
+        expect_match(als_text(output$text), "Fehler beim Erstellen der Elternbriefe", fixed = TRUE)
+        expect_match(als_text(output$text), "kann nicht angelegt werden", fixed = TRUE)
+      })
+    })
+  })
+})
+
+test_that("der Stufenvergleich fuellt Auswahl, Tabelle und Status", {
+  withr::with_tempdir({
+    # Ausgabeordner im Temp-Verzeichnis, damit nichts im Projekt landet
+    shiny::testServer(server, {
+      session$setInputs(numItems = "40", klassenstufe = "5", klBuchstabe = "c",
+                        cbWEDiff = FALSE, cbAllCombined = TRUE, siPlotType = "Histogramm",
+                        infoKlassenleitung = "6c", infoAbsender = "Test, Tina")
+
+      # ohne zweite Stufe ist der Vergleich gesperrt
+      ohne_bekannte_warnungen(session$setInputs(input_tsv = tsv_input("klasse_5c.tsv")))
+      expect_equal(nrow(rv$df), 9)
+      expect_false(auswahl_moeglich())
+      expect_match(als_text(output$vergleichHinweis), "zweite tsv-Datei", fixed = TRUE)
+
+      # zweite Stufe laden -> Vergleich moeglich
+      ohne_bekannte_warnungen(session$setInputs(input_tsv = tsv_input("klasse_6c.tsv")))
+      expect_equal(nrow(rv$df), 18)
+      expect_true(auswahl_moeglich())
+      expect_equal(stufen_verfuegbar(), c(5, 6))
+
+      # Stufenpaar setzen (in testServer loest updateSelectInput die Eingabe nicht aus)
+      session$setInputs(siStufeAlt = 5, siStufeNeu = 6)
+      k <- cohort_daten()
+      expect_equal(k$stufe_alt, 5)
+      expect_equal(k$stufe_neu, 6)
+      expect_gt(nrow(cohort_gematcht(k)), 5)
+
+      # Tabelle und Status werden gefuellt
+      expect_false(is.null(output$tabZuordnung))
+      status <- als_text(output$zuordnungStatus)
+      expect_match(status, "Kinder sind zugeordnet", fixed = TRUE)
+      # im Normalfall steht kein Hinweis mehr - das Stufenpaar zeigen die Felder,
+      # das Diagramm und der Infobrief selbst
+      expect_equal(trimws(als_text(output$vergleichHinweis)), "")
+      expect_match(als_text(output$infobriefHinweis), "bestätigten Zuordnungen",
+                   fixed = TRUE)
+
+      # eine Zuordnung bestaetigen: Entscheidung wird gespeichert
+      vorschlaege <- which(k$paare$Status == "vorschlag")
+      if (length(vorschlaege) > 0) {
+        session$setInputs(tabZuordnung_rows_selected = vorschlaege[1])
+        session$setInputs(btZuordnungJa = 1)
+        expect_true(any(rv$entscheidungen$Aktion == "ja"))
+        erwartete_datei <- entscheidungen_pfad(k)
+        expect_true(file.exists(erwartete_datei))
+        expect_match(basename(erwartete_datei), "^zuordnung_5c-6c\\.tsv$")
+        # Herkunft und Pruefsumme stehen in der Datei
+        gespeichert <- readr::read_tsv(erwartete_datei, show_col_types = FALSE)
+        expect_true(all(c("Quelle_Alt", "Quelle_Neu", "Kohorte") %in%
+                          colnames(gespeichert)))
+        expect_equal(unique(gespeichert$Kohorte), kohorte_pruefsumme(k))
+
+        # zuruecksetzen loescht die Datei
+        session$setInputs(btZuordnungResetBestaetigt = 1)
+        expect_false(file.exists(erwartete_datei))
+        expect_null(rv$entscheidungen)
+      }
+
+      # Vergleichstabelle im Statistik-Tab
+      expect_false(is.null(output$tabVergleich))
+      expect_match(als_text(output$vergleichTabHinweis), "Kinder mit zwei Messungen",
+                   fixed = TRUE)
+
+      # Entwicklungsdiagramm nutzt dieselbe Zuordnung
+      ohne_bekannte_warnungen(session$setInputs(siPlotType = "Entwicklung"))
+      expect_gt(nchar(als_text(output$histRF)), 50)
+      expect_gt(nchar(als_text(output$histWE)), 50)
+    })
+  })
+})

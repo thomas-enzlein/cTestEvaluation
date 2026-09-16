@@ -15,6 +15,7 @@ ggplot2
 forcats
 stringdist
 fuzzyjoin
+digest
 httr2
 fs
 qrcode

@@ -7,10 +7,6 @@ body <- dashboardBody(
     ### Auswertungs Tab ####
     tabItem(
       useShinyjs(),
-      # refocus Funktion
-      extendShinyjs(text = jscode, 
-                    functions = "refocus"),
-      
       tags$head(
         includeCSS("style.css")
       ),
@@ -88,6 +84,9 @@ body <- dashboardBody(
     ### Statistik Tab ####
     tabItem(
       tabName = "statistik",
+      # Boxen in einer Zeile: sonst "schweben" sie und die Tabellenbox laeuft
+      # unter den hellen Hintergrund hinaus
+      fluidRow(
       box(title = "WE-Verteilung der Schüler",
           fluidRow(
             createPlotOutput("histWE")
@@ -112,10 +111,11 @@ body <- dashboardBody(
               selectInput(inputId = "siPlotType", 
                           choices = c("Histogramm",
                                       "Dichte",
-                                      "Entwicklung"), 
+                                      "Entwicklung",
+                                      "Verlauf"), 
                           label = "Diagramm Typ", 
-                          selected = "Histogram", 
-                          multiple = FALSE, width = "130px")
+                          selected = "Histogramm", 
+                          multiple = FALSE, width = "180px")
             ))
           ),
           width = 6
@@ -130,6 +130,68 @@ body <- dashboardBody(
             
           ),
           width = 6
+      ),
+      ),
+      ### Vergleich je Kind (nur wenn zwei Stufen zugeordnet werden koennen)
+      fluidRow(
+      box(title = "Vergleich je Kind (zwei Stufen)",
+          fluidRow(
+            column(width = 12, uiOutput("vergleichTabHinweis"))
+          ),
+          fluidRow(
+            div(dataTableOutput("tabVergleich"),
+                style = "margin-left:15px;
+                         margin-right:15px")
+          ),
+          width = 12
+      )
+      )
+    ),
+    ### Infobrief-Tab ####
+    tabItem(
+      tabName = "infobrief",
+      fluidRow(
+        box(
+          title = "Lehrkräfte-Infobrief erstellen",
+          fluidRow(
+            column(width = 4,
+                   shiny::textInput(inputId = "infoKlassenleitung",
+                                    label = "Klassenleitung (optional)",
+                                    placeholder = "6c")),
+            column(width = 4,
+                   shiny::textInput(inputId = "infoAbsender",
+                                    label = "Absender (optional)",
+                                    placeholder = "Max Mustermann")),
+            column(width = 4,
+                   createActionButton("btInfobrief", "Infobrief erstellen", icon("file-lines")))
+          ),
+          fluidRow(
+            column(width = 12, uiOutput("infobriefHinweis"))
+          ),
+          width = 12
+        ),
+        box(
+          title = "Zuordnung zum Vorjahr",
+          fluidRow(
+            column(width = 12, uiOutput("zuordnungHinweis"))
+          ),
+          fluidRow(
+            div(dataTableOutput("tabZuordnung"),
+                style = "margin-left:15px;
+                         margin-right:15px")
+          ),
+          fluidRow(
+            column(width = 3,
+                   createActionButton("btZuordnungJa", "Zuordnung bestätigen", icon("check"))),
+            column(width = 3,
+                   createActionButton("btZuordnungNein", "trennen", icon("xmark"))),
+            column(width = 3,
+                   createActionButton("btZuordnungReset", "Zuordnungen zurücksetzen",
+                                      icon("rotate-left"))),
+            column(width = 3, uiOutput("zuordnungStatus"))
+          ),
+          width = 12
+        )
       )
     ),
     tabItem(

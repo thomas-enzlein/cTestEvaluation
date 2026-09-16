@@ -1,0 +1,9 @@
+`r fpar(format(Sys.Date(), "%d.%m.%Y"), fp_p = fp_par(text.align = "right"))`
+
+## Lernentwicklung im Fach Deutsch: Jahrgang `r d$stufe_alt` im Vergleich zu Jahrgang `r d$stufe_neu`
+
+`r d$anrede`
+
+Grundlage sind die Ergebnisse aus den Klassen `r d$klassen_alt` in der Jahrgangsstufe `r d$stufe_alt` und erneut in der Jahrgangsstufe `r d$stufe_neu`. Für `r d$n_gematcht` Kinder liegen damit zwei Messungen vor.`r d$zusatz_neu``r d$zusatz_partner`
+
+Die folgenden Abschnitte fassen die Entwicklung der Gruppe zusammen; alle Zahlen beziehen sich auf die Kinder, für die beide Messungen vorliegen.

@@ -60,11 +60,9 @@ test_that("composeClass baut die Klasse zusammen", {
 })
 
 test_that("ohne gewaehlte Klassenstufe wird keine Klasse gebildet", {
-  skip(paste("Bekannter Fehler, Behebung in Paket D: composeClass() prueft nur den",
-             "Klassenbuchstaben. Wird nur der Buchstabe gewaehlt und die Klassenstufe",
-             "bleibt auf 'Bitte waehlen', entsteht die Klasse 'c' ohne Jahrgang -",
-             "im Elternbrief steht dann 'der NA. Klasse'."))
+  # sonst entstuende "c" ohne Jahrgang - im Elternbrief "der NA. Klasse"
   expect_null(composeClass("", "c"))
+  expect_null(composeClass("   ", "c"))
   expect_equal(checkInputErrors("Test, T", 10, 12, 40, composeClass("", "c")),
                "Bitte Klassenstufe und Klasse angeben.")
 })
