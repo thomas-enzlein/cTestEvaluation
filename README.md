@@ -100,6 +100,11 @@ Das Skript baut den Auslieferungsordner, ruft Inno Setup auf und legt das Setup 
 stehen in [build/README.md](build/README.md); die Version wird zentral in `APP_VERSION`
 in `app.R` gepflegt.
 
+**Automatisch:** `.github/workflows/release.yml` ruft dasselbe Skript auf GitHub auf.
+Ein Tag `v*` (mit passender `APP_VERSION` in `app.R`) lässt Testsuite und Setup laufen und
+hängt das Setup an das Release; ein manueller Start über „Actions → Windows-Setup → Run
+workflow" baut nur und legt das Setup als Artefakt ab.
+
 ## Tests
 
 Die Testsuite liegt in `tests/` und ist nicht Teil der installierten App:

@@ -90,6 +90,27 @@ Rechte: Der Installationsordner wird auf `users-full` gesetzt, damit die App dor
 Rechte), weicht die App auf `C-Test Auswertung` in den eigenen Dokumenten aus und nennt
 den Ordner in der Meldung.
 
+## Automatischer Build (GitHub Actions)
+
+`.github/workflows/release.yml` ruft genau dieses Skript auf – lokal und in der CI läuft
+also derselbe Bau.
+
+| Auslöser | Ergebnis |
+|---|---|
+| Tag `v*` pushen | Testsuite läuft, Setup wird gebaut, **Release** wird angelegt und das Setup angehängt |
+| Actions → „Windows-Setup" → Run workflow | Testsuite läuft, Setup wird gebaut, Setup liegt als **Artefakt** bereit (kein Release) – zum Testen des Ablaufs |
+
+Der Workflow prüft vor dem Bauen, dass der Tag zur Version passt: bei Tag `v1.6` muss in
+`app.R` `APP_VERSION <- "1.6"` stehen, sonst bricht er ab. Die R-Paketbibliothek wird über
+`actions/cache` gecacht (Schlüssel aus R-Version, CRAN-Snapshot und `req.txt`) – der erste
+Lauf dauert daher deutlich länger als die folgenden.
+
+Damit der Ablauf reproduzierbar bleibt, sind R-Version (`4.5.3`) und CRAN-Snapshot
+(`2026-08-01`) im Workflow fest eingetragen; pandoc kommt jeweils als aktuelles Release
+dazu. Der Auslieferungsordner liegt in der CI **außerhalb** des Repos (`runner.temp`),
+sonst würde `robocopy /MIR` das Repository in sich selbst spiegeln – das Skript lehnt
+einen solchen Pfad inzwischen auch ausdrücklich ab.
+
 ## Erster Test nach dem Bauen
 
 Am besten auf einem Windows **ohne** installiertes R: Setup ausführen, App starten, einen
@@ -97,8 +118,13 @@ Schüler eintragen, speichern, einen Elternbrief erzeugen (prüft pandoc) und de
 mit zwei geladenen Jahrgängen erzeugen (prüft die zweite Stufe). Wenn das läuft, ist das
 Setup in sich geschlossen.
 
-## Später: GitHub Action
+Beim Start zeigt das Konsolenfenster, welche Bausteine benutzt werden – dort muss das
+**mitgelieferte** R stehen (Pfad im Installationsordner), nicht ein installiertes:
 
-Geplant ist ein Workflow, der bei einem Tag `v*` dasselbe Skript aufruft und das Setup als
-Release-Anhang hochlädt. Wichtig ist dabei, R-Version, Snapshot, Chrome- und
-pandoc-Version explizit zu setzen, damit ein Release reproduzierbar ist.
+```
+App-Ordner: C:\ProgramData\C-Test Auswertung\app
+R: R version 4.5.3 (…) (C:/ProgramData/C-Test Auswertung/R)
+pandoc: C:\ProgramData\C-Test Auswertung\pandoc\pandoc.exe
+Browser: C:\ProgramData\C-Test Auswertung\chrome\chrome.exe
+Profil:  C:/Users/<Name>/AppData/Local/C-Test Auswertung/chrome_profile
+```

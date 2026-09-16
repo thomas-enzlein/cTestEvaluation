@@ -125,6 +125,14 @@ function Finde-Iscc {
 # 0. Vorbereitung
 # ----------------------------------------------------------------------------
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+
+# Pfad normalisieren (loest ".." auf), damit der Vergleich unten und alle
+# Dateioperationen mit einer eindeutigen Form arbeiten
+if (![System.IO.Path]::IsPathRooted($FactoryDir)) {
+    $FactoryDir = Join-Path (Get-Location).Path $FactoryDir
+}
+$FactoryDir = [System.IO.Path]::GetFullPath($FactoryDir).TrimEnd([char]'\')
+
 $AppQuelle = Join-Path $FactoryDir "app"
 $RZiel = Join-Path $FactoryDir "R"
 $Rscript = Join-Path $RZiel "bin\x64\Rscript.exe"
@@ -135,6 +143,16 @@ $TempOrdner = Join-Path $FactoryDir "_tmp"
 Write-Host "C-Test Auswertung - Build" -ForegroundColor Cyan
 Info "Repository:          $RepoRoot"
 Info "Auslieferungsordner: $FactoryDir"
+
+# Schutz gegen eine boese Falle: liegt der Auslieferungsordner IM Repository,
+# spiegelt robocopy /MIR das Repository in einen Unterordner von sich selbst
+# und laeuft sich dabei voll.
+$repoPraefix = $RepoRoot.TrimEnd([char]'\') + '\'
+if ($FactoryDir.StartsWith($repoPraefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+    Abbruch ("Der Auslieferungsordner darf nicht im Repository liegen (robocopy wuerde " +
+             "in sich selbst spiegeln). Bitte -FactoryDir ausserhalb waehlen, z. B. " +
+             "'D:\R\cTest_build'.")
+}
 
 if (!(Test-Path $FactoryDir)) { New-Item -ItemType Directory -Path $FactoryDir | Out-Null }
 
@@ -312,7 +330,7 @@ cat("alle Pakete vorhanden\n")
 Schritt "Quellcode nach app\ spiegeln"
 Info "$RepoRoot  ->  $AppQuelle"
 robocopy $RepoRoot $AppQuelle /MIR `
-    /XD ".git" ".github" ".Rproj.user" "tests" "build" "Auswertungen" `
+    /XD ".git" ".github" ".Rproj.user" "tests" "build" "Auswertungen" "_factory" ".rtmp" `
     /XF ".RData" ".Rhistory" "req_dev.txt" "*.log" ".gitignore" ".Rbuildignore" `
         "template_1.docx" "~`$*" | Out-Null
 if ($LASTEXITCODE -ge 8) { Abbruch "robocopy meldete Fehler (Exitcode $LASTEXITCODE)." }

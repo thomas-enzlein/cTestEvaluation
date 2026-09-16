@@ -1,0 +1,159 @@
+# Baut das Windows-Setup automatisch und haengt es an das Release.
+#
+# Zwei Wege:
+#   - Tag v* pushen               -> baut, legt das Release an und haengt das Setup an
+#   - manuell starten (Actions -> Windows-Setup -> Run workflow)
+#                                 -> baut und legt das Setup als Artefakt ab
+#                                    (zum Testen des Ablaufs, ohne Release)
+#
+# Der eigentliche Bau steckt in build/build_factory.ps1 und laeuft lokal genau
+# gleich; dieser Workflow installiert nur die Voraussetzungen und ruft es auf.
+
+name: Windows-Setup
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (leer = APP_VERSION aus app.R)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  setup:
+    name: Setup bauen
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      # Bewusst NICHT im Repository: robocopy /MIR spiegelt das Repository in
+      # den Auslieferungsordner - liegt der darin, spiegelt es in sich selbst.
+      # (Der runner-Context ist in env auf Job-Ebene nicht verfuegbar, daher
+      # wird der Pfad aus github.workspace abgeleitet.)
+      FACTORY: ${{ github.workspace }}\..\_ctest_build
+      R_VERSION: "4.5.3"
+
+    steps:
+      - name: Quellcode holen
+        uses: actions/checkout@v4
+
+      # R und pandoc werden hier nur fuer die Testsuite gebraucht. Das Setup
+      # bringt sein eigenes R und pandoc mit (build_factory.ps1).
+      - name: R bereitstellen
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: ${{ env.R_VERSION }}
+          use-public-rspm: true
+
+      - name: pandoc bereitstellen
+        uses: r-lib/actions/setup-pandoc@v2
+
+      - name: Testpakete installieren
+        shell: pwsh
+        run: |
+          Rscript -e "install.packages(readLines('req_dev.txt'), repos = 'https://cloud.r-project.org')"
+
+      - name: Testsuite
+        shell: pwsh
+        run: Rscript tests/run_tests.R
+
+      - name: Inno Setup bereitstellen
+        shell: pwsh
+        run: |
+          $kandidaten = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+          )
+          if ($kandidaten | Where-Object { Test-Path $_ }) {
+            Write-Host "Inno Setup ist vorhanden"
+          } else {
+            Write-Host "Inno Setup fehlt - wird installiert"
+            choco install innosetup -y --no-progress
+          }
+
+      - name: Chrome bereitstellen
+        shell: pwsh
+        run: |
+          $kandidaten = @(
+            "${env:ProgramFiles}\Google\Chrome\Application\chrome.exe",
+            "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe"
+          )
+          if ($kandidaten | Where-Object { Test-Path $_ }) {
+            Write-Host "Chrome ist vorhanden"
+          } else {
+            Write-Host "Chrome fehlt - wird installiert"
+            choco install googlechrome -y --no-progress
+          }
+
+      # Nur die R-Paketbibliothek wird gecacht: der teuerste Teil des Baus.
+      # Schluessel enthaelt R-Version, CRAN-Snapshot und req.txt - aendert sich
+      # einer davon, wird neu installiert.
+      - name: R-Paketbibliothek aus dem Cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.FACTORY }}\R\library
+          key: rlib-${{ runner.os }}-r${{ env.R_VERSION }}-snap2026-08-01-${{ hashFiles('req.txt') }}
+          restore-keys: |
+            rlib-${{ runner.os }}-r${{ env.R_VERSION }}-snap2026-08-01-
+
+      - name: Version bestimmen
+        id: version
+        shell: pwsh
+        run: |
+          $appVersion = (Select-String -Path app.R -Pattern 'APP_VERSION\s*<-\s*"([^"]+)"').Matches[0].Groups[1].Value
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $tagVersion = "${{ github.ref_name }}".TrimStart("v")
+            if ($tagVersion -ne $appVersion) {
+              throw "Tag ${{ github.ref_name }} passt nicht zu APP_VERSION ($appVersion) in app.R"
+            }
+            $version = $appVersion
+          } elseif ("${{ github.event.inputs.version }}") {
+            $version = "${{ github.event.inputs.version }}"
+          } else {
+            $version = $appVersion
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Version: $version (APP_VERSION in app.R: $appVersion)"
+
+      - name: Setup bauen
+        shell: pwsh
+        run: |
+          .\build\build_factory.ps1 -FactoryDir "$env:FACTORY" -Version "${{ steps.version.outputs.version }}" -RVersion "$env:R_VERSION"
+
+      - name: Protokoll des Baus anzeigen
+        shell: pwsh
+        run: |
+          Get-Content "$env:FACTORY\build-info.txt"
+          Get-ChildItem "$env:FACTORY\Output" | Format-Table Name, Length, LastWriteTime
+
+      - name: Setup als Artefakt ablegen
+        if: ${{ github.ref_type != 'tag' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest-setup-${{ steps.version.outputs.version }}
+          path: ${{ env.FACTORY }}\Output\*.exe
+          retention-days: 7
+
+      - name: Release anlegen und Setup anhaengen
+        if: ${{ github.ref_type == 'tag' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $setup = (Get-ChildItem "$env:FACTORY\Output\*.exe" | Select-Object -First 1).FullName
+          $tag = "${{ github.ref_name }}"
+          Write-Host "Setup: $setup"
+          # cmd /c, damit die Fehlermeldung von gh nicht als PowerShell-Fehler gilt
+          cmd /c "gh release view $tag >nul 2>&1"
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $tag existiert - Setup wird angehaengt"
+            gh release upload $tag $setup --clobber
+          } else {
+            gh release create $tag $setup --title "Release $tag" --generate-notes
+          }
+          if ($LASTEXITCODE -ne 0) { throw "Release $tag konnte nicht erstellt werden." }
