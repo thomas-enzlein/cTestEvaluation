@@ -342,6 +342,14 @@ combine_letters <- function(rdocx, temp_path, out_path) {
   return(rdocx)
 }
 
+shorten_url <- function(long_url) {
+  req <- httr2::request("https://is.gd/create.php") |> 
+    httr2::req_url_query(format = "simple", url = long_url) |> 
+    httr2::req_perform()
+  
+  return(httr2::resp_body_string(req))
+}
+
 generate_qrcode <- function(qrLink) {
   if(!is.null(qrLink)) {
     if(isTruthy(qrLink)) {
@@ -349,12 +357,12 @@ generate_qrcode <- function(qrLink) {
       # first check if global object tinyLink is already present
       # this is because tinyurl.com will answer a limited number of requests
       if(!exists("tinyLink")) {
-        tinyLink <<- list(link = carbonate::tinyurl(qrLink),
+        tinyLink <<- list(link = shorten_url(qrLink),
                           raw = qrLink)
       } else {
         # if url is different, generate a new tinyLink
         if(tinyLink$raw != qrLink) {
-          tinyLink <<- list(link = carbonate::tinyurl(qrLink),
+          tinyLink <<- list(link = shorten_url(qrLink),
                             raw = qrLink)
         }
       }

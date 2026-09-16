@@ -26,5 +26,4 @@ export
 flextable
 pandoc
 qrcode
-carbonate
 fuzzyjoin
