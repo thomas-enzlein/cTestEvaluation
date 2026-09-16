@@ -88,7 +88,7 @@ Hier können die eingegebenen Daten als Diagramme dargestellt werden.
 
 ![](images/statistik_histogramm.PNG){width="700"}
 
-Das linke Diagramm zeigt den `WE-Wert` in Prozent. Mit der Checkbox `Differenz` zeigt es stattdessen die Differenz zwischen `WE-Wert` und `R/F-Wert` (positiv = der WE-Wert liegt über dem R/F-Wert). Mit der Checkbox `Gesamtübersicht` werden (falls mehrere Klassen vorhanden sind) alle Daten zusammen oder nach Klasse getrennt ausgewertet.
+Das linke Diagramm zeigt den `WE-Wert` in Prozent. Mit der Checkbox `Differenz` zeigt es stattdessen die Differenz zwischen `WE-Wert` und `R/F-Wert`. Da der `WE-Wert` immer mindestens so hoch ist wie der `R/F-Wert`, zeigt diese Differenz, wie viele Wörter erkannt, aber falsch geschrieben wurden. Mit der Checkbox `Gesamtübersicht` werden (falls mehrere Klassen vorhanden sind) alle Daten zusammen oder nach Klasse getrennt ausgewertet.
 
 Das rechte Diagramm zeigt die `R/F-Werte` in Prozent; die gestrichelte Linie markiert den Referenzwert für Gesamtschulen und die gepunktete Linie den unteren Grenzwert des Normalbereichs (65 %). Alle Schüler, die unterhalb dieser Grenze liegen, brauchen u.U. Unterstützung oder sollten zumindest näher betrachtet werden. Unter den Diagrammen stehen Mittelwert ± Standardabweichung sowie der Median; der Median wird nur hier in der App angezeigt, im Infobrief steht er nicht.
 

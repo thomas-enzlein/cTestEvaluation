@@ -1,0 +1,6 @@
+# Zeilenenden festschreiben - wichtig fuer den Build (cmd.exe braucht in
+# Batch-Dateien CRLF) und fuer die geplante GitHub-Action, die auf einem
+# anderen Rechner auscheckt.
+*.bat text eol=crlf
+*.iss text eol=crlf
+*.ps1 text eol=crlf

@@ -1,3 +1,7 @@
+# Version der Anwendung - einzige Quelle fuer Release und Installer.
+# build/build_factory.ps1 liest sie aus und uebergibt sie an Inno Setup.
+APP_VERSION <- "1.6"
+
 source('./ui.R')
 source('./server.R')
 
