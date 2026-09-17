@@ -48,8 +48,6 @@ server <- function(input, output, session) {
   updateTextInput(session, "signatur", value = einstellungen_start$signatur)
   updateTextInput(session, "qrLink", value = einstellungen_start$qrlink)
   updateTextInput(session, "infoAbsender", value = einstellungen_start$info_absender)
-  updateTextInput(session, "infoKlassenleitung",
-                  value = einstellungen_start$info_klassenleitung)
   updateSelectInput(session, "numItems", selected = einstellungen_start$numitems)
   updateCheckboxInput(session, "cbWEDiff", value = .als_wahr(einstellungen_start$plot_diff))
   updateCheckboxInput(session, "cbAllCombined",
@@ -65,7 +63,6 @@ server <- function(input, output, session) {
          signatur = wert(input$signatur),
          qrlink = wert(input$qrLink),
          info_absender = wert(input$infoAbsender),
-         info_klassenleitung = wert(input$infoKlassenleitung),
          numitems = wert(input$numItems, "40"),
          plot_diff = if (isTRUE(input$cbWEDiff)) "ja" else "nein",
          plot_gesamt = if (isTRUE(input$cbAllCombined)) "ja" else "nein",
@@ -569,9 +566,23 @@ server <- function(input, output, session) {
                     sum(k$paare$Status == "nur_neu"), "."))
   })
 
+  # Hinweis richtet sich nach der gewaehlten Briefart
   output$infobriefHinweis <- renderUI({
+    if(ist_standbrief()) {
+      if(rv$inital || is.null(rv$df) || nrow(rv$df) == 0) {
+        return(helpText("Es sind keine Daten geladen."))
+      }
+      klassen <- tryCatch(stand_bericht(rv$df)$klassen, error = function(e) character(0))
+      if(length(klassen) == 0) {
+        return(helpText("Es sind keine Kinder mit Werten geladen."))
+      }
+      return(helpText(paste0("Stand-Brief: eine Seite je Klasse, alles in einer ",
+                             "Word-Datei (", paste(klassen, collapse = ", "), "). ",
+                             "Kein Vorjahresvergleich nötig.")))
+    }
     if(!auswahl_moeglich()) {
-      return(helpText("Für den Infobrief werden zwei Jahrgänge benötigt."))
+      return(helpText(paste0("Für den Entwicklungsbrief werden zwei Jahrgänge ",
+                             "benötigt - oder oben \"Stand je Klasse\" wählen.")))
     }
     helpText(paste0("Der Infobrief nutzt die oben bestätigten Zuordnungen. ",
                     "Offene Vorschläge werden nicht mitgezählt."))
@@ -649,9 +660,25 @@ server <- function(input, output, session) {
   })
 
   #### Infobrief erstellen ####
+  # Briefart aus der Oberflaeche. Der Stand-Brief ist die neue Voreinstellung,
+  # der Entwicklungsbrief war das bisherige Verhalten - ohne gesetzte Auswahl
+  # (z. B. in Programmlaeufen) gilt weiterhin der Entwicklungsbrief.
+  brieftyp <- reactive({
+    typ <- input$siBrieftyp
+    if(is.null(typ) || !nzchar(as.character(typ))) return("entwicklung")
+    as.character(typ)
+  })
+  ist_standbrief <- reactive(identical(brieftyp(), "stand"))
+
   observeEvent(input$btInfobrief, {
+    if(ist_standbrief()) {
+      ergebnis <- standbrief_erstellen()
+      if(!is.null(ergebnis)) ausgeben(ergebnis)
+      return()
+    }
     if(!auswahl_moeglich()) {
-      showNotification("Bitte zwei Stufen laden und auswählen.", type = "error")
+      showNotification(paste0("Bitte zwei Stufen laden und auswählen - oder ",
+                              "\"Stand je Klasse\" wählen."), type = "error")
       return()
     }
     k <- cohort_oder_null()
@@ -662,20 +689,13 @@ server <- function(input, output, session) {
     }
 
     # wie beim Elternbrief: Datenstand vor dem Rendern sichern
-    sicherung <- tryCatch(sichere_daten(rv$df),
-                          error = function(e) {
-                            list(geschrieben = FALSE, datei = NA_character_,
-                                 meldung = paste0("Daten konnten nicht zusaetzlich ",
-                                                  "gesichert werden: ",
-                                                  conditionMessage(e)))
-                          })
+    sicherung <- sichere_stand_daten()
 
     withProgress(message = "Infobrief wird erstellt", value = 0,
                  detail = "Vorbereitung ...", {
       ergebnis <- tryCatch({
         list(ok = TRUE,
              wert = create_infobrief(k,
-                                     klassenleitung = input$infoKlassenleitung,
                                      absender = input$infoAbsender,
                                      fortschritt = function(anteil, text) {
                                        setProgress(value = anteil, detail = text)
@@ -684,21 +704,86 @@ server <- function(input, output, session) {
     })
 
     if(!ergebnis$ok) {
-      msgs <- paste0("Fehler beim Erstellen des Infobriefs: ", ergebnis$wert)
-      showNotification(msgs, type = "error", duration = NULL)
-      output$text <- renderText(msgs)
-      message(msgs)
+      melde_fehler(ergebnis$wert)
       return()
     }
 
-    msgs <- paste0("Infobrief erstellt: ", basename(ergebnis$wert$datei))
-    if(isTRUE(sicherung$geschrieben)) {
-      msgs <- paste0(msgs, "\n", sicherung$meldung)
+    ausgeben(list(datei = ergebnis$wert$datei, sicherung = sicherung,
+                  meldung = "Infobrief erstellt: "))
+  })
+
+  #### Stand-Brief (eine Seite je Klasse) erstellen ####
+  standbrief_erstellen <- function() {
+    if(rv$inital || is.null(rv$df) || nrow(rv$df) == 0) {
+      melde_hinweis("Es sind keine Daten geladen.")
+      return(NULL)
+    }
+    statistik <- tryCatch(stand_statistik(rv$df), error = function(e) NULL)
+    if(is.null(statistik) || nrow(statistik) == 0 || !any(statistik$n_werte > 0)) {
+      melde_hinweis("Es sind keine Kinder mit Werten geladen.")
+      return(NULL)
+    }
+
+    sicherung <- sichere_stand_daten()
+
+    withProgress(message = "Stand-Brief wird erstellt", value = 0,
+                 detail = "Vorbereitung ...", {
+      ergebnis <- tryCatch({
+        list(ok = TRUE,
+             wert = create_standbrief(rv$df, absender = input$infoAbsender,
+                                      fortschritt = function(anteil, text) {
+                                        setProgress(value = anteil, detail = text)
+                                      }))
+      }, error = function(e) list(ok = FALSE, wert = conditionMessage(e)))
+    })
+
+    if(!ergebnis$ok) {
+      melde_fehler(ergebnis$wert, art = "Stand-Briefs")
+      return(NULL)
+    }
+
+    rest <- ergebnis$wert$bericht$uebersprungen
+    zusatz <- if(length(rest) > 0) {
+      paste0("\nÜbersprungen (keine Werte): ", paste(rest, collapse = ", "))
+    } else ""
+    list(datei = ergebnis$wert$datei, sicherung = sicherung,
+         meldung = "Stand-Brief erstellt: ", zusatz = zusatz)
+  }
+
+  # Datenstand vor dem Rendern zusaetzlich sichern (wie beim Elternbrief)
+  sichere_stand_daten <- function() {
+    tryCatch(sichere_daten(rv$df),
+             error = function(e) {
+               list(geschrieben = FALSE, datei = NA_character_,
+                    meldung = paste0("Daten konnten nicht zusaetzlich ",
+                                     "gesichert werden: ", conditionMessage(e)))
+             })
+  }
+
+  melde_fehler <- function(text, art = "Infobriefs") {
+    melde_hinweis(paste0("Fehler beim Erstellen des ", art, ": ", text))
+  }
+
+  # Meldung an die Oberflaeche: Hinweisblase und Text im Ausgabebereich
+  melde_hinweis <- function(msgs) {
+    showNotification(msgs, type = "error", duration = NULL)
+    output$text <- renderText(msgs)
+    message(msgs)
+    invisible(NULL)
+  }
+
+  # Meldung an die Oberflaeche + Ausgabeordner oeffnen
+  ausgeben <- function(ergebnis) {
+    msgs <- paste0(ergebnis$meldung, basename(ergebnis$datei))
+    if(!is.null(ergebnis$zusatz)) msgs <- paste0(msgs, ergebnis$zusatz)
+    if(isTRUE(ergebnis$sicherung$geschrieben)) {
+      msgs <- paste0(msgs, "\n", ergebnis$sicherung$meldung)
     }
     showNotification(msgs, duration = 5)
     output$text <- renderText(msgs)
     utils::browseURL(createFilePath(NULL, ""))
-  })
+    invisible(NULL)
+  }
 
   #### Verteilungs plot ####
   observeEvent(list(rv$df, input$cbWEDiff, input$cbAllCombined, input$siPlotType,

@@ -1,0 +1,49 @@
+`r fpar(format(Sys.Date(), "%d.%m.%Y"), fp_p = fp_par(text.align = "right"))`
+
+## Lernstand im Fach Deutsch – Klasse `r d$klasse`
+
+`r d$anrede`
+
+Grundlage sind die Ergebnisse der Klasse `r d$klasse` aus dem C-Test. `r if (d$n_werte == d$n) paste0("Für alle ", d$n, " Kinder liegen Werte vor.") else paste0("Für ", d$n_werte, " von ", d$n, " Kindern liegen Werte vor.")`
+
+```{r, echo=FALSE}
+if (!is.null(d$tabelle)) .tabellen_abstand(tabelle_stand(d$tabelle))
+```
+
+```{r, echo=FALSE}
+if (!is.null(d$kategorien)) {
+  .tabellen_abstand(tabelle_kategorien(d$kategorien),
+                    titel = "Ergebnisse im Überblick")
+}
+```
+
+`r d$referenz$unter` von `r d$referenz$n` Kindern liegen mit ihrem R/F-Wert unter dem unteren Normbereich (unter `r d$referenz$grenze` %).
+
+```{r, echo=FALSE}
+if (!is.null(d$top)) {
+  .tabellen_abstand(tabelle_werte(d$top, d$top_unten),
+                    titel = "Die höchsten Werte (bis zu 5 Kinder)")
+}
+```
+
+`r .abstand_hinweis(d$top_unten, d$referenz$grenze)`
+
+Mit freundlichen Grüßen,
+
+`r d$absender`
+
+\newpage
+
+```{r, echo=FALSE}
+block_list(
+  fpar(ftext(paste0("Anhang: Übersicht aller Kinder der Klasse ", d$klasse),
+             fp_text(bold = TRUE)),
+       fp_p = fp_par(padding.bottom = 4))
+)
+```
+
+```{r, echo=FALSE}
+if (!is.null(d$lesetabelle)) .tabellen_abstand(tabelle_werte(d$lesetabelle, d$lese_unten))
+```
+
+`r .abstand_hinweis(d$lese_unten, d$referenz$grenze)`

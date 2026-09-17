@@ -45,8 +45,9 @@ A left-hand menu (illustrated within the app) allows users to access different f
 - Statistics: distributions of the WE and R/F values, mean ± standard deviation and median
   per class, the development of two year levels (`Entwicklung` and `Verlauf`) and the
   table `Vergleich je Kind (zwei Stufen)` with one row per student.
-- Infobrief: the teacher info letter summarising the development of a class across two
-  year levels, including the review of the student matching (see below).
+- Infobrief: two letter types - `Stand je Klasse` (current status of every loaded class, no
+  comparison needed) and the development letter over two year levels, including the review of
+  the student matching (see below).
 - Elternbrief: automated letters for parents as Word files, optionally with a QR code
   linking to the exercises.
 - Anleitung: the manual (in German).
@@ -81,76 +82,82 @@ tsv is also the only file that carries the item count per student).
 In the "Add Student" subsection, educators can swiftly enter and compile student data, setting up the number of test items and adjusting class settings as required.
 The overview table not only summarizes the data but also provides sorting functionality to help educators identify students needing the most support.
 
-## Lehrkräfte-Infobrief (Entwicklung über zwei Jahrgänge)
+## Teacher infobrief
 
-Für den Vergleich zweier Jahrgänge (z. B. 5c → 6c) gibt es den Tab `Infobrief`:
+The `Infobrief` tab offers two letter types:
 
-- links im Menü das Stufenpaar wählen (`Vergleich von Stufe` → `bis Stufe`). Die Auswahl
-  ist gesperrt, solange keine zwei Jahrgänge geladen sind; im Normalfall ist das Paar mit
-  den meisten zuordenbaren Kindern bereits eingestellt.
-- die Zuordnung der Kinder zum Vorjahr prüfen und offene Vorschläge bestätigen oder
-  trennen. Nicht eindeutige Fälle entscheidet die App bewusst nicht.
-- die Entscheidungen werden als `zuordnung_5c-6c.tsv` (Name aus den Klassen der beiden
-  Jahrgänge abgeleitet) im Auswertungsordner gespeichert, enthalten die Quelldateien und
-  eine Prüfsumme und werden beim nächsten Lauf automatisch wieder angewendet.
-- der Brief nennt je Klassenbuchstabe `n (mit Werten)`, `WE % (Mittel ± SD)` und
-  `R/F % (Mittel ± SD)`, die Kinder unter dem unteren Normbereich samt Vorjahresvergleich,
-  die größten Verbesserungen und die schwächste Entwicklung. Danach folgen die Seite
-  `Hinweise` (neue Kinder, fehlende Vorjahreswerte, unbestätigte Vorschläge, Kinder ohne
-  Teilnahme) und der Anhang `Vergleich je Kind`.
+- `Stand je Klasse` (default): the current status of every loaded class, no comparison and no
+  matching required - works after the first test in year 5 as well as after the retest in year 6.
+  One Word file `Infobrief_Stand_<classes>.docx` with one page per class: key figures
+  (`n (mit Werten)`, mean ± SD, median), the four category groups with count, share and the
+  categories behind them, the students below the lower norm range (whole row bold), the highest
+  values and an appendix listing every student of the class. Categories are colour-coded like in
+  Excel and Word; there are no plots. Classes without values are skipped and named in the message.
+- `Entwicklung (zwei Jahrgänge)`: the development of a class across two year levels (e.g. 5c → 6c).
+  Select the pair of year levels in the left menu (`Vergleich von Stufe` → `bis Stufe`). The
+  selection is locked as long as fewer than two year levels are loaded; in the normal case the
+  pair with the most matchable students is already set. Review the matching of the students to
+  the previous year and confirm or split open suggestions - ambiguous cases are deliberately not
+  decided by the app. The decisions are stored as `zuordnung_5c-6c.tsv` (the name is derived from
+  the classes of both year levels) in the output folder, contain the source files and a checksum,
+  and are applied again automatically on the next run. The letter reports per class letter
+  `n (mit Werten)`, `WE % (Mittel ± SD)` and `R/F % (Mittel ± SD)`, the students below the lower
+  norm range including the comparison with the previous year, the largest improvements and the
+  weakest development. This is followed by the page `Hinweise` (new students, missing previous
+  values, unconfirmed suggestions, students who did not take part) and the appendix
+  `Vergleich je Kind`.
 
-Das Entwicklungsdiagramm im Tab Statistik nutzt dieselbe Zuordnung. Beim Speichern landet
-die Vergleichstabelle zusätzlich als Blatt `Vergleich` im Excel-Export und als Anhang in
-der Word-Auswertung.
+The development plot in the `Statistik` tab uses the same matching. When saving, the comparison
+table is additionally written as sheet `Vergleich` in the Excel export and as an appendix in the
+Word evaluation.
 
-## Windows-Installer bauen
+## Building the Windows installer
 
-Die App wird als Setup für Windows ausgeliefert (Inno Setup; portables R, Chrome und
-pandoc liegen im Setup - auf den Zielrechnern muss nichts installiert werden):
+The app ships as a Windows setup (Inno Setup; portable R, Chrome and pandoc are part of the
+setup - nothing has to be installed on the target machines):
 
 ```powershell
-.\build\build_factory.ps1 -Version 1.7         # Version sonst aus app.R
-.\build\build_factory.ps1 -SkipRuntime         # nur Setup neu bauen
+.\build\build_factory.ps1 -Version 1.8         # version is otherwise taken from app.R
+.\build\build_factory.ps1 -SkipRuntime         # rebuild the setup only
 ```
 
-Das Skript baut den Auslieferungsordner, ruft Inno Setup auf und legt das Setup unter
-`<FactoryDir>\Output\ctest_auswertung_<Version>.exe` ab. Schalter und Voraussetzungen
-stehen in [build/README.md](build/README.md); die Version wird zentral in `APP_VERSION`
-in `app.R` gepflegt.
+The script builds the distribution folder, calls Inno Setup and writes the setup to
+`<FactoryDir>\Output\ctest_auswertung_<Version>.exe`. Switches and requirements are described in
+[build/README.md](build/README.md); the version is maintained centrally in `APP_VERSION` in
+`app.R`.
 
-**Automatisch:** `.github/workflows/release.yml` ruft dasselbe Skript auf GitHub auf.
-Ein Tag `v*` (mit passender `APP_VERSION` in `app.R`) lässt Testsuite und Setup laufen und
-hängt das Setup an das Release; der Release-Text kommt aus [CHANGELOG.md](CHANGELOG.md).
-Ein manueller Start über „Actions → Windows-Setup → Run workflow" baut nur und legt das
-Setup als Artefakt ab.
+**Automated:** `.github/workflows/release.yml` calls the same script on GitHub. A tag `v*`
+(matching `APP_VERSION` in `app.R`) runs the test suite and the setup and attaches the setup to
+the release; the release text comes from [CHANGELOG.md](CHANGELOG.md). A manual start via
+"Actions → Windows-Setup → Run workflow" only builds and stores the setup as an artifact.
 
 ## Tests
 
-Die Testsuite liegt in `tests/` und ist nicht Teil der installierten App:
+The test suite lives in `tests/` and is not part of the installed app:
 
 ```
 install.packages(c(readLines("req.txt"), readLines("req_dev.txt")))
 Rscript tests/run_tests.R
 ```
 
-Die Tests laden die App (`global.R`), brauchen also **alle** Pakete aus `req.txt` – `req_dev.txt`
-liefert nur `testthat` und `withr` dazu.
+The tests load the app (`global.R`), so they need **all** packages from `req.txt` - `req_dev.txt`
+only adds `testthat` and `withr`.
 
-Sie deckt Rechenkern, tsv-Rundlauf (inklusive robustem Laden mit anderen Spaltennamen, Itemzahl
-und Plausibilitätsprüfung), Word/Excel-Export, Elternbrief- und Infobrief-Erzeugung, App-Abläufe
-ohne Browser, Schreibrechte, Einstellungen, Vorlagen, Datensicherung, gesperrte Zieldateien,
-Offline-Verhalten und die Namensauflösung (Paket-Verdeckungen) ab – aktuell 159 Tests mit 867
-Erwartungen (Stand Version 1.7).
+It covers the calculation core, the tsv round trip (including robust loading with different
+column names, item count and plausibility checks), Word/Excel export, parent letter and infobrief
+generation, app flows without a browser, write permissions, settings, templates, data backup,
+locked target files, offline behaviour and name resolution (package masking) - currently 169
+tests (about 1000 expectations).
 
-## Projektstruktur
+## Project structure
 
 ```
-app.R, ui.R, server.R, global.R   Einstieg, Oberfläche, Server-Logik
-components/                       header, sidebar, body (UI-Bausteine)
-functions/                        Rechenkern, Kohorten-/Namensabgleich, Briefe, Exporte
-elternbrief/                      Vorlagen und Text des Elternbriefs (Rmd, docx, xlsx)
-infobrief/                        Vorlagen und Text des Infobriefs (Rmd, docx, yml)
-helpfiles/                        Anleitung und Hilfetexte (inkl. Screenshots)
-tests/                            Testsuite (testthat) mit Fixtures
-build/                            Build-Skript, Inno-Setup-Skript, Launcher, Icon
+app.R, ui.R, server.R, global.R   entry point, user interface, server logic
+components/                       header, sidebar, body (UI building blocks)
+functions/                        calculation core, cohort and name matching, letters, exports
+elternbrief/                      templates and text of the parent letter (Rmd, docx, xlsx)
+infobrief/                        templates and text of the infobrief (Rmd, docx, yml)
+helpfiles/                        manual and help texts (including screenshots)
+tests/                            test suite (testthat) with fixtures
+build/                            build script, Inno Setup script, launcher, icon
 ```

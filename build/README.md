@@ -17,14 +17,14 @@ im Setup.
 
 ```powershell
 # in einer PowerShell-Konsole im Projektordner
-.\build\build_factory.ps1 -Version 1.7        # erster Lauf: baut die Laufzeit auf (R, Pakete, Chrome, pandoc)
+.\build\build_factory.ps1 -Version 1.8        # erster Lauf: baut die Laufzeit auf (R, Pakete, Chrome, pandoc)
 .\build\build_factory.ps1 -SkipRuntime        # nach Code-Änderungen: nur spiegeln + Setup (Sekunden)
 .\build\build_factory.ps1 -ForceChrome        # nur den mitgelieferten Browser austauschen
 .\build\build_factory.ps1 -ForceRuntime       # Laufzeit komplett neu aufbauen
 .\build\build_factory.ps1 -Release            # zusätzlich GitHub-Release mit dem Setup (braucht gh)
 
 # aus cmd.exe heraus (oder wenn die Ausführungsrichtlinie Skripte blockt)
-powershell -ExecutionPolicy Bypass -File build\build_factory.ps1 -Version 1.7
+powershell -ExecutionPolicy Bypass -File build\build_factory.ps1 -Version 1.8
 ```
 
 Läuft mit Windows PowerShell 5.1 (kein PowerShell 7 nötig).
@@ -107,8 +107,8 @@ also derselbe Bau.
 | Tag `v*` pushen | Testsuite läuft, Setup wird gebaut, **Release** wird angelegt und das Setup angehängt |
 | Actions → „Windows-Setup" → Run workflow | Testsuite läuft, Setup wird gebaut, Setup liegt als **Artefakt** bereit (kein Release) – zum Testen des Ablaufs |
 
-Der Workflow prüft vor dem Bauen, dass der Tag zur Version passt: bei Tag `v1.7` muss in
-`app.R` `APP_VERSION <- "1.7"` stehen, sonst bricht er ab. Die R-Paketbibliothek wird über
+Der Workflow prüft vor dem Bauen, dass der Tag zur Version passt: bei Tag `v1.8` muss in
+`app.R` `APP_VERSION <- "1.8"` stehen, sonst bricht er ab. Die R-Paketbibliothek wird über
 `actions/cache` gecacht (Schlüssel aus R-Version, CRAN-Snapshot und `req.txt`) – der erste
 Lauf dauert daher deutlich länger als die folgenden.
 

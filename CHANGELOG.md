@@ -3,6 +3,23 @@
 Der Abschnitt der Version, die als Tag veröffentlicht wird, wird als Beschreibung des
 GitHub-Releases verwendet.
 
+## 1.8
+
+**Stand-Brief je Klasse.** Im Tab `Infobrief` gibt es jetzt die Briefart-Wahl: `Stand je Klasse`
+(neu, Voreinstellung) oder `Entwicklung (zwei Jahrgänge)` (wie bisher). Der Stand-Brief braucht
+keine zwei Jahrgänge – er funktioniert nach dem Ersttest in der 5 genauso wie nach dem Re-Test
+in der 6. Er liefert **eine** Word-Datei `Infobrief_Stand_<Klassen>.docx` mit einer Seite je
+geladener Klasse: Kennzahlen (`n (mit Werten)`, Mittel ± SD, Median), vier Gruppen mit Anzahl,
+Prozent und den zugehörigen Kategorien, Kinder unter dem unteren Normbereich (ganze Zeile fett),
+die höchsten Werte und ein Anhang mit allen Kindern. Kategorien sind farbig wie in Excel und
+Word, Plots gibt es nicht, Klassen ohne Werte werden übersprungen und gemeldet.
+
+**Anrede automatisch.** Das Feld `Klassenleitung` ist entfallen: Die Anrede kommt aus den Klassen
+des Briefes (`Liebe Klassenleitung der 5c,` / `Liebe Klassenleitungen der 6b und 6c,`). Die alte
+Zeile `info_klassenleitung` fällt beim nächsten Speichern aus `einstellungen.txt`.
+
+**Kleinigkeiten.** Mehr Abstand um die Tabellen, README aufgeräumt (deutsch nur noch im Kopf).
+
 ## 1.7
 
 **Robustes Laden von Ergebnissen.** Eine tsv-Datei muss nicht mehr exakt aufgebaut sein: Die

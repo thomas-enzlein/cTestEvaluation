@@ -302,7 +302,6 @@ createFilePath <- function(filename, extension) {
        signatur = "",
        qrlink = "",
        info_absender = "",
-       info_klassenleitung = "",
        numitems = "40",
        plot_diff = "nein",
        plot_gesamt = "ja",
@@ -313,6 +312,11 @@ createFilePath <- function(filename, extension) {
        rf_referenz = "71.3",
        rf_norm_unten = "65")
 }
+
+# Schluessel, die es nicht mehr gibt. Die Anrede der Briefe wird aus den Klassen
+# gebildet (siehe infobrief_anrede), ein Feld "Klassenleitung" gibt es nicht
+# mehr. Alte Zeilen werden beim naechsten Speichern entfernt.
+.einstellungen_veraltet <- c("info_klassenleitung")
 
 einstellungen_pfad <- function() {
   .pfad_nativ(file.path(benutzer_ausgabeordner(), "einstellungen.txt"))
@@ -348,6 +352,9 @@ einstellungen_lesen <- function(pfad = einstellungen_pfad()) {
 # Versionen). Schreibfehler werden gemeldet, aber nicht als Fehler geworfen -
 # beim Tippen darf kein Fenster aufgehen.
 einstellungen_schreiben <- function(werte, pfad = einstellungen_pfad()) {
+  # Schluessel ohne Feld in der Oberflaeche gehoeren nicht mehr in die Datei
+  for (name in .einstellungen_veraltet) werte[[name]] <- NULL
+
   if (!verzeichnis_sicherstellen(dirname(pfad))) {
     message("Einstellungen konnten nicht gespeichert werden - Ordner nicht ",
             "beschreibbar: ", dirname(pfad))
@@ -357,7 +364,7 @@ einstellungen_schreiben <- function(werte, pfad = einstellungen_pfad()) {
   bekannt <- names(.einstellungen_default())
   if (file.exists(pfad)) {
     vorhanden <- einstellungen_lesen(pfad)
-    for (name in setdiff(names(vorhanden), bekannt)) {
+    for (name in setdiff(names(vorhanden), c(bekannt, .einstellungen_veraltet))) {
       if (is.null(werte[[name]])) werte[[name]] <- vorhanden[[name]]
     }
   }

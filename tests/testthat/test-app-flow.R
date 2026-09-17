@@ -211,6 +211,17 @@ test_that("der Stufenvergleich fuellt Auswahl, Tabelle und Status", {
       expect_match(als_text(output$infobriefHinweis), "bestätigten Zuordnungen",
                    fixed = TRUE)
 
+      # Paket M: Briefart umschalten - der Hinweis nennt die Klassen des
+      # Stand-Briefs, und der Entwicklungsbrief bleibt unberuehrt
+      session$setInputs(siBrieftyp = "stand")
+      stand_hinweis <- als_text(output$infobriefHinweis)
+      expect_match(stand_hinweis, "Stand-Brief", fixed = TRUE)
+      expect_match(stand_hinweis, "5c", fixed = TRUE)
+      expect_match(stand_hinweis, "6c", fixed = TRUE)
+      session$setInputs(siBrieftyp = "entwicklung")
+      expect_match(als_text(output$infobriefHinweis), "bestätigten Zuordnungen",
+                   fixed = TRUE)
+
       # eine Zuordnung bestaetigen: Entscheidung wird gespeichert
       vorschlaege <- which(k$paare$Status == "vorschlag")
       if (length(vorschlaege) > 0) {

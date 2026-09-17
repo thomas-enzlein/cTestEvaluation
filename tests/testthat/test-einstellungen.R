@@ -123,6 +123,23 @@ test_that("unbekannte Schluessel und Kommentare in der Datei bleiben erhalten", 
   })
 })
 
+test_that("Schluessel ohne Feld in der Oberflaeche verschwinden aus der Datei", {
+  mit_einstellungen({
+    # so sah eine Datei aus, als es noch das Feld "Klassenleitung" gab
+    einstellungen_schreiben(.einstellungen_default())
+    cat("info_klassenleitung=6c\n", file = einstellungen_datei(), append = TRUE)
+    expect_match(paste(readLines(einstellungen_datei(), encoding = "UTF-8"),
+                       collapse = "\n"),
+                 "info_klassenleitung=6c", fixed = TRUE)
+
+    # die Anrede wird jetzt aus den Klassen gebildet - der alte Wert faellt weg
+    einstellungen_schreiben(einstellungen_lesen())
+    inhalt <- paste(readLines(einstellungen_datei(), encoding = "UTF-8"), collapse = "\n")
+    expect_false(grepl("info_klassenleitung", inhalt, fixed = TRUE))
+    expect_false("info_klassenleitung" %in% names(.einstellungen_default()))
+  })
+})
+
 test_that("kaputte Zeilen und fehlende Dateien stoeren nicht", {
   mit_einstellungen({
     dir.create(dirname(einstellungen_datei()), recursive = TRUE)

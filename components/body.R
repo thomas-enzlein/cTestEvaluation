@@ -154,15 +154,18 @@ body <- dashboardBody(
         box(
           title = "Lehrkräfte-Infobrief erstellen",
           fluidRow(
-            column(width = 4,
-                   shiny::textInput(inputId = "infoKlassenleitung",
-                                    label = "Klassenleitung (optional)",
-                                    placeholder = "6c")),
-            column(width = 4,
+            column(width = 6,
+                   shiny::radioButtons(inputId = "siBrieftyp",
+                                       label = "Art des Briefes",
+                                       inline = TRUE,
+                                       choices = c("Stand je Klasse" = "stand",
+                                                   "Entwicklung (zwei Jahrgänge)" = "entwicklung"),
+                                       selected = "stand")),
+            column(width = 3,
                    shiny::textInput(inputId = "infoAbsender",
                                     label = "Absender (optional)",
                                     placeholder = "Max Mustermann")),
-            column(width = 4,
+            column(width = 3,
                    createActionButton("btInfobrief", "Infobrief erstellen", icon("file-lines")))
           ),
           fluidRow(
