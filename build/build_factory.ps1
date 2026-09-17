@@ -258,12 +258,36 @@ if (length(noch) > 0) {
   cat("NOCH-FEHLEND: ", paste(noch, collapse = ", "), "\n", sep = "")
   quit(status = 1)
 }
-cat("alle Pakete in der Auslieferungsbibliothek vorhanden\n")
+# Auch die Abhaengigkeiten muessen in der Auslieferungsbibliothek liegen: sonst
+# laeuft die App auf einem fremden Rechner nicht (z.B. "there is no package
+# called 'httpuv'"). install.packages() laesst weg, was es irgendwo im
+# Suchpfad findet - deshalb meldet der Schritt, wie viele Pakete dort liegen.
+alle <- rownames(installed.packages(lib.loc = lib))
+cat("Pakete in der Auslieferungsbibliothek: ", length(alle), "\n", sep = "")
+cat("alle Pakete aus req.txt vorhanden\n")
 "@
         Set-TextOhneBom -Pfad $rDatei -Text $code
-        # Ausgabe direkt auf die Konsole: die Funktion liefert nur das Ergebnis
-        & $Rscript $rDatei | Out-Host
-        return ($LASTEXITCODE -eq 0)
+        # Fremde Bibliotheken ausblenden: sonst gilt ein Paket als vorhanden,
+        # weil es in der Benutzerbibliothek liegt (auf dem Entwicklungsrechner
+        # und im CI-Runner), und seine Abhaengigkeiten werden nicht mit
+        # installiert. Die Auslieferungsbibliothek muss fuer sich stehen.
+        $leereLib = Join-Path $TempOrdner "_leere_bibliothek"
+        if (Test-Path $leereLib) { Remove-Item -Recurse -Force $leereLib }
+        New-Item -ItemType Directory -Path $leereLib | Out-Null
+        $alteUser = $env:R_LIBS_USER
+        $alteSite = $env:R_LIBS_SITE
+        $env:R_LIBS_USER = $leereLib
+        $env:R_LIBS_SITE = $leereLib
+        try {
+            # Ausgabe direkt auf die Konsole: die Funktion liefert nur das Ergebnis
+            & $Rscript $rDatei | Out-Host
+            return ($LASTEXITCODE -eq 0)
+        } finally {
+            if ($null -eq $alteUser) { Remove-Item Env:\R_LIBS_USER -ErrorAction SilentlyContinue }
+            else { $env:R_LIBS_USER = $alteUser }
+            if ($null -eq $alteSite) { Remove-Item Env:\R_LIBS_SITE -ErrorAction SilentlyContinue }
+            else { $env:R_LIBS_SITE = $alteSite }
+        }
     }
 
     if ($Snapshot -ne "") {
@@ -354,14 +378,21 @@ if (length(fehlt) > 0) {
   cat("NICHT IM AUSLIEFERUNGSORDNER: ", paste(fehlt, collapse = ", "), "\n", sep = "")
   quit(status = 1)
 }
-# Stichprobe laden: eine vorhandene, aber defekte Installation faellt so auf
+# Stichprobe laden. Ein Paket kann im Ordner liegen und trotzdem nicht laden -
+# etwa wenn seine Abhaengigkeiten fehlen (auf dem Entwicklungsrechner liegen sie
+# in der Benutzerbibliothek, hier ist die ausgeblendet). Der Grund wird mit
+# genannt, damit das Protokoll den fehlenden Namen zeigt.
 probe <- c("shiny", "shinydashboard", "DT", "officer", "officedown", "rmarkdown", "readr")
-nicht_ladbar <- probe[!vapply(probe, requireNamespace, logical(1), quietly = TRUE)]
-if (length(nicht_ladbar) > 0) {
-  cat("NICHT LADBAR: ", paste(nicht_ladbar, collapse = ", "), "\n", sep = "")
+probleme <- vapply(probe, function(p) {
+  tryCatch({ loadNamespace(p); "" }, error = function(e) conditionMessage(e))
+}, character(1))
+probleme <- probleme[nzchar(probleme)]
+if (length(probleme) > 0) {
+  cat("NICHT LADBAR:\n")
+  for (p in names(probleme)) cat("  ", p, ": ", probleme[[p]], "\n", sep = "")
   quit(status = 1)
 }
-cat("Auslieferungsordner enthaelt alle ", length(pkgs), " Pakete\n", sep = "")
+cat("Auslieferungsordner enthaelt alle ", length(pkgs), " Pakete aus req.txt (mit Abhaengigkeiten)\n", sep = "")
 "@
 Set-TextOhneBom -Pfad $pruefDatei -Text $pruefCode
 
