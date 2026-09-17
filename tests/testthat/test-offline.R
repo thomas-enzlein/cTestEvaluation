@@ -12,9 +12,10 @@ test_that("ohne Link wird kein Netz aufgerufen und nichts erzeugt", {
     .package = "httr2"
   )
   expect_no_error(qr <- generate_qrcode(NULL))
-  expect_true(is.na(qr))
+  expect_true(is.na(qr$img))
+  expect_true(is.na(qr$txt))
   expect_no_error(qr_leer <- generate_qrcode(""))
-  expect_true(is.na(qr_leer))
+  expect_true(is.na(qr_leer$img))
 })
 
 test_that("shorten_url liefert ohne Internet NULL statt abzubrechen", {
@@ -33,10 +34,15 @@ test_that("ohne Internet entsteht trotzdem ein QR-Code mit dem Originallink", {
     req_perform = function(...) stop("kein Netz im Test"),
     .package = "httr2"
   )
-  qr <- generate_qrcode("https://example.org/uebungen")
+  ziel <- file.path(tempdir(), paste0("qr_", Sys.getpid()))
+  dir.create(ziel, showWarnings = FALSE)
+  qr <- generate_qrcode("https://example.org/uebungen", zielordner = ziel)
 
   expect_type(qr, "list")
-  expect_true(file.exists(qr$img))
+  # nur der Dateiname: knitr::include_graphics() rechnet absolute Pfade beim
+  # Einbetten relativ zum Ausgabeordner um und findet die Datei dann nicht mehr
+  expect_false(grepl("[/\\\\]", qr$img))
+  expect_true(file.exists(file.path(ziel, qr$img)))
   expect_match(qr$txt, "https://example.org/uebungen", fixed = TRUE)
 })
 

@@ -305,7 +305,7 @@ cohort_statistik <- function(x) {
 
 # Wer liegt im aktuellen Jahr unter dem Referenzwert - und wie hat sich das
 # gegenueber dem Vorjahr entwickelt?
-unter_referenz <- function(x, grenze = 65) {
+unter_referenz <- function(x, grenze = .normgrenze("R/F")) {
   g <- cohort_gematcht(x)
   g <- g[!is.na(g$RF_Alt) & !is.na(g$RF_Neu), , drop = FALSE]
 
@@ -374,11 +374,11 @@ zuordnung_dateiname <- function(stufe_alt = NULL, stufe_neu = NULL,
 }
 
 entscheidungen_pfad <- function(cohort) {
-  file.path(createFilePath(NULL, ""),
-            zuordnung_dateiname(stufe_alt = cohort$stufe_alt,
-                                stufe_neu = cohort$stufe_neu,
-                                klassen_alt = cohort$klassen_alt,
-                                klassen_neu = cohort$klassen_neu))
+  .pfad_nativ(file.path(createFilePath(NULL, ""),
+                        zuordnung_dateiname(stufe_alt = cohort$stufe_alt,
+                                            stufe_neu = cohort$stufe_neu,
+                                            klassen_alt = cohort$klassen_alt,
+                                            klassen_neu = cohort$klassen_neu)))
 }
 
 # Entscheidungen laden (fehlende Datei -> leere Tabelle).
@@ -438,40 +438,75 @@ write_entscheidungen <- function(entscheidungen, pfad) {
 
 #### Vergleichstabellen je Kind ####
 
+# Grund fuer eine fehlende Seite als kurzer Text (nur fuer die vollstaendige
+# Nachschlageliste). Leer, wenn beide Jahrgaenge zugeordnet sind und Werte haben.
+tabellen_hinweis <- function(daten) {
+  status <- as.character(daten$Status)
+  zugeordnet <- status %in% c("auto", "bestaetigt")
+
+  hinweis <- ifelse(zugeordnet, "", cohort_status_text(status))
+  ohne_alt <- is.na(daten$WE_Alt) & is.na(daten$RF_Alt)
+  ohne_neu <- is.na(daten$WE_Neu) & is.na(daten$RF_Neu)
+
+  hinweis[zugeordnet & ohne_alt & ohne_neu] <- "nicht teilgenommen (5. und 6. Klasse)"
+  hinweis[zugeordnet & ohne_alt & !ohne_neu] <- "nicht teilgenommen (5. Klasse)"
+  hinweis[zugeordnet & !ohne_alt & ohne_neu] <- "nicht teilgenommen (6. Klasse)"
+  hinweis[is.na(hinweis)] <- ""
+  hinweis
+}
+
 # Kinderzeilen eines Kohorten-Ergebnisses in die Anzeigeform bringen.
-# Vorher/aktuell stehen zusammen in einer Spalte ("45,0 -> 35,0"), damit die
-# Tabelle schmal bleibt. mit_klasse = FALSE laesst die Klassenspalte weg
-# (im Infobrief nennt die Ueberschrift die Stufen).
-cohort_tabelle <- function(daten, mit_klasse = TRUE,
+# Vorher/aktuell stehen zusammen in einer Spalte ("45,0 -> 35,0"). Fehlt eine
+# Seite, steht dort "-" (z. B. "45,0 -> -"): vorhandene Werte gehen nie
+# verloren, die fehlende Seite ist sofort sichtbar.
+# mit_klasse = FALSE laesst die Klassenspalte weg (im Infobrief nennt die
+# Ueberschrift die Stufen), mit_hinweis = TRUE ergaenzt die Spalte "Hinweis".
+cohort_tabelle <- function(daten, mit_klasse = TRUE, mit_hinweis = FALSE,
                            stufe_alt = NULL, stufe_neu = NULL) {
   if (is.null(daten) || nrow(daten) == 0) return(NULL)
+
+  als_zahl <- function(x) ifelse(is.na(x), "-", de_zahl(x))
   spanne <- function(vorher, aktuell) {
-    ifelse(is.na(vorher) | is.na(aktuell), "-",
-           paste0(de_zahl(vorher), " \u2192 ", de_zahl(aktuell)))
+    paste0(als_zahl(vorher), " \u2192 ", als_zahl(aktuell))
   }
+  # Klasse: das Kind kann nur in einem Jahrgang vorkommen
+  klasse_text <- function(alt, neu) {
+    ifelse(!is.na(alt) & !is.na(neu), paste0(alt, " \u2192 ", neu),
+           ifelse(!is.na(alt), alt, neu))
+  }
+  # Name: ohne aktuelle Zeile den Namen aus dem Vorjahr nehmen
+  name_text <- function(alt, neu) ifelse(!is.na(neu), neu, alt)
+
   kopf_we <- if (is.null(stufe_alt) || is.null(stufe_neu)) "WE % (vorher \u2192 aktuell)"
     else paste0("WE % (", stufe_alt, " \u2192 ", stufe_neu, ")")
   kopf_rf <- if (is.null(stufe_alt) || is.null(stufe_neu)) "R/F % (vorher \u2192 aktuell)"
     else paste0("R/F % (", stufe_alt, " \u2192 ", stufe_neu, ")")
 
-  tab <- data.frame(Name = daten$Name_Neu, check.names = FALSE, stringsAsFactors = FALSE)
+  tab <- data.frame(Name = name_text(daten$Name_Alt, daten$Name_Neu),
+                    check.names = FALSE, stringsAsFactors = FALSE)
   if (mit_klasse) {
-    tab[["Klasse"]] <- paste0(daten$Klasse_Alt, " \u2192 ", daten$Klasse_Neu)
+    tab[["Klasse"]] <- klasse_text(daten$Klasse_Alt, daten$Klasse_Neu)
   }
   tab[[kopf_we]] <- spanne(daten$WE_Alt, daten$WE_Neu)
   tab[["Δ WE"]] <- daten$dWE
   tab[[kopf_rf]] <- spanne(daten$RF_Alt, daten$RF_Neu)
   tab[["Δ R/F"]] <- daten$dRF
+  if (mit_hinweis) tab[["Hinweis"]] <- tabellen_hinweis(daten)
   tab
 }
 
-# Verschlankte Uebersicht fuer Statistik-Tab, Infobrief-Anhang und Export
-vergleich_tabelle <- function(cohort) {
+# Verschlankte Uebersicht fuer Statistik-Tab, Infobrief-Anhang und Export.
+# Enthaelt ALLE Kinder aus beiden Jahrgaengen mit den vorhandenen Werten -
+# auch die, die nur in einem Jahrgang vorkommen (Vergleichbarkeit der Kennzahlen
+# stellt cohort_gematcht() her, nicht diese Liste).
+# mit_hinweis = FALSE laesst die Spalte "Hinweis" weg (im Word-Anhang ist die
+# Seite zu schmal dafuer).
+vergleich_tabelle <- function(cohort, mit_hinweis = TRUE) {
   if (is.null(cohort) || !inherits(cohort, "cohort")) return(NULL)
-  g <- cohort_gematcht(cohort)
-  if (nrow(g) == 0) return(NULL)
+  paare <- cohort$paare
+  if (is.null(paare) || nrow(paare) == 0) return(NULL)
 
-  tab <- cohort_tabelle(g, mit_klasse = TRUE,
+  tab <- cohort_tabelle(paare, mit_klasse = TRUE, mit_hinweis = mit_hinweis,
                         stufe_alt = cohort$stufe_alt, stufe_neu = cohort$stufe_neu)
   # alphabetisch nach Namen (Nachschlageliste; in der App zusaetzlich sortierbar)
   tab <- tab[order(tab$Name), , drop = FALSE]
@@ -483,7 +518,7 @@ vergleich_tabelle <- function(cohort) {
 # Bei den schwaechsten zuerst die Kinder, die weiterhin unter dem unteren
 # Normbereich liegen (dabei "schon im Vorjahr betroffen" vor "neu dazu"),
 # erst danach die groessten Verschlechterungen ueber dem Normbereich.
-cohort_rangliste <- function(cohort, top = 5, schwach = 5, grenze = 65) {
+cohort_rangliste <- function(cohort, top = 5, schwach = 5, grenze = .normgrenze("R/F")) {
   if (is.null(cohort) || !inherits(cohort, "cohort")) {
     return(list(verbesserungen = NULL, schwach = NULL))
   }

@@ -17,22 +17,22 @@ im Setup.
 
 ```powershell
 # in einer PowerShell-Konsole im Projektordner
-.\build\build_factory.ps1 -Version 1.6        # erster Lauf: baut die Laufzeit auf (R, Pakete, Chrome, pandoc)
+.\build\build_factory.ps1 -Version 1.7        # erster Lauf: baut die Laufzeit auf (R, Pakete, Chrome, pandoc)
 .\build\build_factory.ps1 -SkipRuntime        # nach Code-Änderungen: nur spiegeln + Setup (Sekunden)
 .\build\build_factory.ps1 -ForceChrome        # nur den mitgelieferten Browser austauschen
 .\build\build_factory.ps1 -ForceRuntime       # Laufzeit komplett neu aufbauen
 .\build\build_factory.ps1 -Release            # zusätzlich GitHub-Release mit dem Setup (braucht gh)
 
 # aus cmd.exe heraus (oder wenn die Ausführungsrichtlinie Skripte blockt)
-powershell -ExecutionPolicy Bypass -File build\build_factory.ps1 -Version 1.6
+powershell -ExecutionPolicy Bypass -File build\build_factory.ps1 -Version 1.7
 ```
 
 Läuft mit Windows PowerShell 5.1 (kein PowerShell 7 nötig).
 
 Voraussetzungen: Windows, [Inno Setup 6](https://jrsoftware.org/isdl.php), Internet
-(erster Lauf, für R und pandoc), ein installiertes Chrome, PowerShell als Administrator,
-wenn R neu installiert werden muss. Die Version kommt aus `APP_VERSION` in `app.R`, wenn
-`-Version` nicht angegeben ist.
+(erster Lauf: R, R-Pakete, Chrome und pandoc), ein installiertes Chrome, PowerShell als
+Administrator, wenn R neu installiert werden muss. Die Version kommt aus `APP_VERSION` in
+`app.R`, wenn `-Version` nicht angegeben ist.
 
 Ergebnis: `<FactoryDir>\Output\ctest_auswertung_<Version>.exe` (Vorgabe für `FactoryDir`
 ist `D:\R\cTest_build` – bewusst außerhalb des Repos, damit Dropbox/Git die großen
@@ -61,10 +61,17 @@ Laufzeitdateien nicht mitschleppen).
    - R 4.5.3 mit dem offiziellen Installer still installieren (`/VERYSILENT /DIR=…`) –
      eine kopierte Installation ist portabel, R findet sein Zuhause über den eigenen Pfad.
    - Pakete aus `req.txt` in `R\library` installieren (Windows-Binärpakete, gepinnter Snapshot).
+     Geprüft wird dabei **gegen die Auslieferungsbibliothek**, nicht gegen den ganzen Suchpfad:
+     sonst meldet der Schritt „nichts zu tun", wenn auf dem Rechner schon eine gefüllte
+     Benutzerbibliothek liegt, und das Setup enthielte kein einziges App-Paket.
    - eine **normale Chrome-Installation** nach `chrome\` kopieren (`chrome_holen.ps1`).
      Ausdrücklich **kein „Chrome for Testing"**: dieser Build zeigt beim Start einen
      Test-Hinweis, der sich nicht abschalten lässt.
    - pandoc (Windows-Zip) nach `pandoc\` entpacken.
+   - **Endkontrolle:** Der Build prüft unabhängig davon, ob alle Pakete aus `req.txt` in
+     `R\library` liegen und sich mit **ausgeblendeter Benutzerbibliothek** laden lassen
+     (so wie auf einem fremden Rechner). Fehlt etwas, bricht er ab – ein Setup ohne
+     App-Pakete kann so nicht mehr entstehen.
 3. **Quellcode spiegeln** nach `app\` – ohne `.git`, `.github`, `tests`, `build`,
    `Auswertungen`, `req_dev.txt`, Word-Sperrdateien.
 4. **Build-Informationen** schreiben: `build-info.txt` (Version, Datum, Commit, R, Quelle,
@@ -100,8 +107,8 @@ also derselbe Bau.
 | Tag `v*` pushen | Testsuite läuft, Setup wird gebaut, **Release** wird angelegt und das Setup angehängt |
 | Actions → „Windows-Setup" → Run workflow | Testsuite läuft, Setup wird gebaut, Setup liegt als **Artefakt** bereit (kein Release) – zum Testen des Ablaufs |
 
-Der Workflow prüft vor dem Bauen, dass der Tag zur Version passt: bei Tag `v1.6` muss in
-`app.R` `APP_VERSION <- "1.6"` stehen, sonst bricht er ab. Die R-Paketbibliothek wird über
+Der Workflow prüft vor dem Bauen, dass der Tag zur Version passt: bei Tag `v1.7` muss in
+`app.R` `APP_VERSION <- "1.7"` stehen, sonst bricht er ab. Die R-Paketbibliothek wird über
 `actions/cache` gecacht (Schlüssel aus R-Version, CRAN-Snapshot und `req.txt`) – der erste
 Lauf dauert daher deutlich länger als die folgenden.
 
@@ -125,6 +132,13 @@ Am besten auf einem Windows **ohne** installiertes R: Setup ausführen, App star
 Schüler eintragen, speichern, einen Elternbrief erzeugen (prüft pandoc) und den Infobrief
 mit zwei geladenen Jahrgängen erzeugen (prüft die zweite Stufe). Wenn das läuft, ist das
 Setup in sich geschlossen.
+
+Den Paketbund kann man vorher in einer Zeile prüfen – `True` heißt, die App-Pakete liegen
+im Installationsordner und nicht nur in einer Benutzerbibliothek:
+
+```powershell
+Test-Path "C:\ProgramData\C-Test Auswertung\R\library\shiny"
+```
 
 Beim Start zeigt das Konsolenfenster, welche Bausteine benutzt werden – dort muss das
 **mitgelieferte** R stehen (Pfad im Installationsordner), nicht ein installiertes:

@@ -1,6 +1,13 @@
 server <- function(input, output, session) {
   # app beenden wenn brower geschlossen wird
   session$onSessionEnded(function() {
+    # letzten Stand der Einstellungen sichern (falls gerade getippt wurde)
+    tryCatch({
+      stand <- shiny::isolate(einstellungen_werte())
+      if (!identical(stand, einstellungen_gespeichert())) {
+        einstellungen_schreiben(einstellungen_mit_referenz(stand))
+      }
+    }, error = function(e) NULL)
     stopApp()
   })
   
@@ -17,7 +24,10 @@ server <- function(input, output, session) {
                                    "R/F-%" = numeric(0),
                                    "Kat." = factor(character(0), 
                                                    levels = lvls),
-                                   "Empfehlung" = character(0)),
+                                   "Empfehlung" = character(0),
+                                   # Itemzahl je Kind: nur intern und in der
+                                   # tsv, nicht in der Anzeige (siehe unten)
+                                   "Items" = numeric(0)),
                        numItems = 80,
                        inital = TRUE,
                        # Namen und Stufen der geladenen tsv-Dateien (fuer die
@@ -27,6 +37,51 @@ server <- function(input, output, session) {
                        # manuelle Zuordnungs-Entscheidungen (Ja/Nein)
                        entscheidungen = NULL
   )
+
+  #### Einstellungen ####
+  # Gespeicherte Werte beim Start in die Felder setzen; danach wird jede
+  # Aenderung automatisch gespeichert (kurz verzoegert, damit nicht jeder
+  # Tastendruck schreibt).
+  einstellungen_start <- tryCatch(einstellungen_lesen(),
+                                  error = function(e) .einstellungen_default())
+  updateTextInput(session, "lehrername", value = einstellungen_start$lehrername)
+  updateTextInput(session, "signatur", value = einstellungen_start$signatur)
+  updateTextInput(session, "qrLink", value = einstellungen_start$qrlink)
+  updateTextInput(session, "infoAbsender", value = einstellungen_start$info_absender)
+  updateTextInput(session, "infoKlassenleitung",
+                  value = einstellungen_start$info_klassenleitung)
+  updateSelectInput(session, "numItems", selected = einstellungen_start$numitems)
+  updateCheckboxInput(session, "cbWEDiff", value = .als_wahr(einstellungen_start$plot_diff))
+  updateCheckboxInput(session, "cbAllCombined",
+                      value = .als_wahr(einstellungen_start$plot_gesamt))
+  updateSelectInput(session, "siPlotType", selected = einstellungen_start$plot_typ)
+
+  # Werte der Oberflaeche, die gespeichert werden
+  einstellungen_werte <- reactive({
+    wert <- function(x, standard = "") {
+      if (is.null(x) || length(x) == 0) standard else as.character(x)[1]
+    }
+    list(lehrername = wert(input$lehrername),
+         signatur = wert(input$signatur),
+         qrlink = wert(input$qrLink),
+         info_absender = wert(input$infoAbsender),
+         info_klassenleitung = wert(input$infoKlassenleitung),
+         numitems = wert(input$numItems, "40"),
+         plot_diff = if (isTRUE(input$cbWEDiff)) "ja" else "nein",
+         plot_gesamt = if (isTRUE(input$cbAllCombined)) "ja" else "nein",
+         plot_typ = wert(input$siPlotType, "Histogramm"))
+  })
+  einstellungen_verzoegert <- debounce(einstellungen_werte, 1000)
+  einstellungen_gespeichert <- reactiveVal(NULL)
+
+  observeEvent(einstellungen_verzoegert(), {
+    stand <- einstellungen_verzoegert()
+    if (identical(stand, einstellungen_gespeichert())) return()
+    if (isTRUE(einstellungen_schreiben(einstellungen_mit_referenz(stand)))) {
+      einstellungen_gespeichert(stand)
+    }
+  })
+  
   #### Anzahl der Testitems aendern 
   observeEvent(input$numItems, {
     rv$numItems <- as.numeric(input$numItems)
@@ -35,7 +90,9 @@ server <- function(input, output, session) {
   
   #### Uebersichtstabelle ####
   observeEvent(rv$df, {
-    dt <- datatable(rv$df,
+    # Itemzahl nicht anzeigen: sie gehoert in die tsv, nicht in die Ansicht
+    anzeige <- rv$df[, setdiff(colnames(rv$df), "Items"), drop = FALSE]
+    dt <- datatable(anzeige,
                     selection = "multiple",
                     options = list(searching = TRUE,
                                    pageLength = 30,
@@ -118,14 +175,17 @@ server <- function(input, output, session) {
       showNotification("Noch keine Schueler in der Tabelle. Nichts zu speichern.", type = "error")
       return()
     }
-    showNotification("Speichere Daten. Bitte warten...")
     # Vergleichstabelle (nur wenn zwei Stufen mit mindestens einem zugeordneten
     # Kind vorliegen) landet als Blatt "Vergleich" im Excel und als Anhang im Word
     vergleich <- tryCatch(vergleich_tabelle(cohort_oder_null()),
                           error = function(e) NULL)
     # Fehler beim Schreiben (z.B. keine Schreibrechte) sichtbar melden
-    ergebnis <- tryCatch(list(ok = TRUE, wert = saveData(rv$df, vergleich = vergleich)),
-                         error = function(e) list(ok = FALSE, wert = conditionMessage(e)))
+    withProgress(message = "Daten werden gespeichert", value = 0.2,
+                 detail = "Word- und Excel-Datei ...", {
+      ergebnis <- tryCatch(list(ok = TRUE, wert = saveData(rv$df, vergleich = vergleich)),
+                           error = function(e) list(ok = FALSE, wert = conditionMessage(e)))
+      setProgress(1, detail = "fertig")
+    })
 
     if(!ergebnis$ok) {
       msgs <- paste0("Fehler beim Speichern: ", ergebnis$wert)
@@ -144,9 +204,31 @@ server <- function(input, output, session) {
   
   #### Laden Button #####
   observeEvent(input$input_tsv, {
-    
-    new_df <- loadData(input$input_tsv)
-    
+
+    # Fehler beim Laden duerfen die Sitzung nicht abbrechen: Meldung zeigen,
+    # alles andere bleibt, wie es war
+    ergebnis <- tryCatch(list(ok = TRUE, df = loadData(input$input_tsv)),
+                         error = function(e) list(ok = FALSE, wert = conditionMessage(e)))
+
+    if(!ergebnis$ok) {
+      msgs <- paste0("Datei konnte nicht geladen werden: ", ergebnis$wert)
+      showNotification(msgs, type = "error", duration = NULL)
+      output$text <- renderText(msgs)
+      message(msgs)
+      return()
+    }
+
+    new_df <- ergebnis$df
+
+    # Hinweise zur Datei (fehlende oder anders benannte Spalten) anzeigen,
+    # aber trotzdem laden
+    hinweise <- lade_hinweise(new_df)
+    if(length(hinweise) > 0) {
+      showNotification(paste(hinweise, collapse = "\n"), type = "warning", duration = 12)
+      output$text <- renderText(paste(hinweise, collapse = " "))
+      message(paste(hinweise, collapse = " | "))
+    }
+
     if(!checkColumnNames(rv$df, new_df)) {
       msgs <- paste0("Fehler, Spaltennamen stimmen nicht in ", 
                      checkInputFile(input$input_tsv), "\n")
@@ -168,6 +250,9 @@ server <- function(input, output, session) {
       # wenn noch keine Daten eingegeben wurden benutze die neuen Daten
       rv$df <- new_df
       rv$inital <- FALSE
+      # die geladene Datei liegt auf der Platte: der Stand gilt als gesichert,
+      # sonst legte schon der erste Briefversand eine Sicherungskopie an
+      merke_gesicherten_stand(rv$df)
       return()
     } 
     
@@ -189,16 +274,33 @@ server <- function(input, output, session) {
       return()
     }
     
-    showNotification("Elternbriefe werden erstellen.\n Dies kann mehrere Minuten dauern.\nBitte warten...",
-                     duration = 30)
-    
-    # Fehler beim Erstellen (z.B. fehlende Schreibrechte) sichtbar melden
-    ergebnis <- tryCatch({
-      list(ok = TRUE, wert = create_letters(rv$df, 
-                                            lehrername = input$lehrername, 
-                                            signatur = input$signatur,
-                                            qrLink = input$qrLink))
-    }, error = function(e) list(ok = FALSE, wert = conditionMessage(e)))
+    # Datenstand vor dem Rendern sichern: die Brief-Erstellung schreibt nur
+    # Word-Dateien ("speichern" ist ein eigener Knopf). Der Aufruf steht bewusst
+    # vor dem Rendern - so sind die Daten auch dann gesichert, wenn das
+    # Erstellen der Briefe fehlschlaegt.
+    sicherung <- tryCatch(sichere_daten(rv$df),
+                          error = function(e) {
+                            list(geschrieben = FALSE, datei = NA_character_,
+                                 meldung = paste0("Daten konnten nicht zusaetzlich ",
+                                                  "gesichert werden: ",
+                                                  conditionMessage(e)))
+                          })
+
+    # Fortschritt im Fenster anzeigen: die Briefe werden nacheinander gerendert
+    # und das dauert bei einer Klasse mehrere Minuten. Fehler beim Erstellen
+    # (z.B. fehlende Schreibrechte) werden trotzdem sichtbar gemeldet.
+    withProgress(message = "Elternbriefe werden erstellt", value = 0,
+                 detail = "Vorbereitung ...", {
+      ergebnis <- tryCatch({
+        list(ok = TRUE, wert = create_letters(rv$df, 
+                                              lehrername = input$lehrername, 
+                                              signatur = input$signatur,
+                                              qrLink = input$qrLink,
+                                              fortschritt = function(anteil, text) {
+                                                setProgress(value = anteil, detail = text)
+                                              }))
+      }, error = function(e) list(ok = FALSE, wert = conditionMessage(e)))
+    })
 
     if(!ergebnis$ok) {
       msgs <- paste0("Fehler beim Erstellen der Elternbriefe: ", ergebnis$wert)
@@ -210,6 +312,9 @@ server <- function(input, output, session) {
     
     msgs <- paste0("Elternbriefe erstellt unter: ", createFilePath(NULL, ""),
                    " (", ergebnis$wert$erstellt, " Brief(e))")
+    if(isTRUE(sicherung$geschrieben)) {
+      msgs <- paste0(msgs, "\n", sicherung$meldung)
+    }
     if(length(ergebnis$wert$fehler) > 0) {
       # einzelne Briefe konnten nicht erstellt werden - Kind und Grund nennen
       msgs <- paste0(msgs, "\nNicht erstellt: ",
@@ -221,6 +326,64 @@ server <- function(input, output, session) {
     output$text <- renderText(msgs)
     
     utils::browseURL(createFilePath(NULL, ""))
+  })
+  
+  #### Vorlagen und Einstellungen ####
+  output$vorlagenHinweis <- renderUI({
+    helpText(paste0("Elternbrief und Infobrief nutzen dieselbe Word-Vorlage. ",
+                    "Angepasst wird eine persönliche Kopie unter '",
+                    vorlagen_ordner(), "' - sie bleibt bei einem Update der App ",
+                    "erhalten. In der Vorlage stehen Briefkopf, Logo, Schrift und ",
+                    "Seitenränder; der Wortlaut der Briefe steht nicht darin. ",
+                    "Ihre Eingaben (Name, Signatur, Link, Absender, Itemzahl, ",
+                    "Ansicht) werden automatisch in '", einstellungen_pfad(),
+                    "' gespeichert und beim nächsten Start wieder eingesetzt; ",
+                    "dort stehen auch die beiden R/F-Marken (Referenzwert und ",
+                    "unterer Normbereich). Die Kategorien der Kinder sind davon ",
+                    "unabhängig."))
+  })
+
+  # Datei bzw. Ordner oeffnen; Fehler (z. B. fehlende Schreibrechte) werden
+  # gemeldet statt still zu scheitern
+  oeffne_vorlage <- function(was = c("datei", "ordner", "einstellungen")) {
+    was <- match.arg(was)
+    ergebnis <- tryCatch(
+      switch(was,
+             datei = list(ok = TRUE, pfad = vorlage_bereitstellen("template.docx")),
+             ordner = list(ok = TRUE, pfad = vorlagen_bereitstellen()),
+             einstellungen = list(ok = TRUE,
+                                  pfad = einstellungen_bereitstellen(
+                                    shiny::isolate(einstellungen_werte())))),
+      error = function(e) list(ok = FALSE, wert = conditionMessage(e)))
+
+    if (!ergebnis$ok) {
+      msgs <- paste0("Öffnen fehlgeschlagen: ", ergebnis$wert)
+      showNotification(msgs, type = "error", duration = NULL)
+      output$text <- renderText(msgs)
+      message(msgs)
+      return()
+    }
+
+    oeffne_datei(ergebnis$pfad)
+    msgs <- paste0(switch(was,
+                          datei = "Briefvorlage geöffnet: ",
+                          ordner = "Vorlagenordner geöffnet: ",
+                          einstellungen = "Einstellungen geöffnet: "),
+                   ergebnis$pfad)
+    showNotification(msgs, duration = 6)
+    output$text <- renderText(msgs)
+  }
+
+  observeEvent(input$btVorlageOeffnen, {
+    oeffne_vorlage("datei")
+  })
+
+  observeEvent(input$btVorlagenOrdner, {
+    oeffne_vorlage("ordner")
+  })
+
+  observeEvent(input$btEinstellungen, {
+    oeffne_vorlage("einstellungen")
   })
   
   #### Stufenvergleich und Infobrief ####
@@ -498,13 +661,27 @@ server <- function(input, output, session) {
       return()
     }
 
-    showNotification("Infobrief wird erstellt. Bitte warten...", duration = 30)
-    ergebnis <- tryCatch({
-      list(ok = TRUE,
-           wert = create_infobrief(k,
-                                   klassenleitung = input$infoKlassenleitung,
-                                   absender = input$infoAbsender))
-    }, error = function(e) list(ok = FALSE, wert = conditionMessage(e)))
+    # wie beim Elternbrief: Datenstand vor dem Rendern sichern
+    sicherung <- tryCatch(sichere_daten(rv$df),
+                          error = function(e) {
+                            list(geschrieben = FALSE, datei = NA_character_,
+                                 meldung = paste0("Daten konnten nicht zusaetzlich ",
+                                                  "gesichert werden: ",
+                                                  conditionMessage(e)))
+                          })
+
+    withProgress(message = "Infobrief wird erstellt", value = 0,
+                 detail = "Vorbereitung ...", {
+      ergebnis <- tryCatch({
+        list(ok = TRUE,
+             wert = create_infobrief(k,
+                                     klassenleitung = input$infoKlassenleitung,
+                                     absender = input$infoAbsender,
+                                     fortschritt = function(anteil, text) {
+                                       setProgress(value = anteil, detail = text)
+                                     }))
+      }, error = function(e) list(ok = FALSE, wert = conditionMessage(e)))
+    })
 
     if(!ergebnis$ok) {
       msgs <- paste0("Fehler beim Erstellen des Infobriefs: ", ergebnis$wert)
@@ -515,6 +692,9 @@ server <- function(input, output, session) {
     }
 
     msgs <- paste0("Infobrief erstellt: ", basename(ergebnis$wert$datei))
+    if(isTRUE(sicherung$geschrieben)) {
+      msgs <- paste0(msgs, "\n", sicherung$meldung)
+    }
     showNotification(msgs, duration = 5)
     output$text <- renderText(msgs)
     utils::browseURL(createFilePath(NULL, ""))
@@ -536,9 +716,8 @@ server <- function(input, output, session) {
                       cohort = cohort_oder_null())
     
     if(!input$siPlotType %in% c("Entwicklung", "Verlauf")) {
-      pRF <- pRF + 
-        geom_vline(xintercept = 71.3, linetype = "dashed", color = "grey40") + 
-        geom_vline(xintercept = 65, linetype = "dotted", color = "grey40")
+      # Referenzlinien aus den Einstellungen (rf_referenz / rf_norm_unten)
+      pRF <- referenz_linien(pRF)
     }
     
     output$histRF <-  renderPlotly(ggplotly(pRF))
@@ -604,8 +783,13 @@ server <- function(input, output, session) {
                                "mindestens einem zugeordneten Kind benötigt ",
                                "(Menü links: Vergleich von Stufe).")))
       }
+      # die Liste enthält alle Kinder; gerechnet wird mit den zugeordneten
+      k <- cohort_oder_null()
+      zugeordnet <- if(is.null(k)) 0 else nrow(cohort_gematcht(k))
       helpText(paste0("Stufe ", input$siStufeAlt, " \u2192 ", input$siStufeNeu,
-                      ": ", nrow(tab), " Kinder mit zwei Messungen."))
+                      ": ", nrow(tab), " Kinder in der Liste, davon ", zugeordnet,
+                      " in beiden Jahrgängen zugeordnet. Fehlende Werte stehen ",
+                      "als \u2013, der Grund in der Spalte Hinweis."))
     })
 
     output$tabVergleich <- renderDT({

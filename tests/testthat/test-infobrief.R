@@ -15,6 +15,9 @@ test_that("Zahlen werden im deutschen Format ausgegeben", {
   expect_equal(de_vz(-3), "-3,0")
   expect_equal(de_vz(7.5), "+7,5")
   expect_equal(de_zahl(NA_real_), "-")
+  # teils fehlende Werte: jede Zelle einzeln, kein "NA" in der Tabelle
+  expect_equal(de_zahl(c(12.5, NA, 3), 1), c("12,5", "-", "3,0"))
+  expect_equal(de_vz(c(7.5, NA, -2)), c("+7,5", "-", "-2,0"))
   expect_equal(kind_text(1), "1 Kind")
   expect_equal(kind_text(3), "3 Kinder")
   expect_equal(kind_dativ(3), "3 Kindern")
@@ -65,14 +68,17 @@ test_that("der Bericht liefert Kopf, Abschnitte und Anhang", {
   expect_equal(abschnitt$rueckgang_schwelle, "10")
 
   # Kennzahlen-Tabelle: eine Zeile je Klasse, n mit Werten in Klammern,
-  # Mittelwert und SD zusammen, keine Stufen-/Median-Spalte
+  # Mittelwert und SD zusammen, keine Stufen-/Median-Spalte - darunter die
+  # Differenzzeile mit der Veraenderung der Mittelwerte
   expect_equal(colnames(abschnitt$tabelle),
                c("Klasse", "n (mit Werten)",
                  "WE % (Mittel \u00b1 SD)", "R/F % (Mittel \u00b1 SD)"))
-  expect_equal(abschnitt$tabelle$Klasse, c("5c", "6c"))
-  expect_equal(abschnitt$tabelle[["n (mit Werten)"]], c("7 (7)", "7 (7)"))
+  expect_equal(abschnitt$tabelle$Klasse, c("5c", "6c", "Differenz"))
+  expect_equal(abschnitt$tabelle[["n (mit Werten)"]][1:2], c("7 (7)", "7 (7)"))
   expect_match(abschnitt$tabelle[["WE % (Mittel \u00b1 SD)"]][1], "^[0-9]+,[0-9] \u00b1[0-9]+,[0-9]$")
   expect_match(abschnitt$tabelle[["R/F % (Mittel \u00b1 SD)"]][1], "^[0-9]+,[0-9] \u00b1[0-9]+,[0-9]$")
+  expect_match(abschnitt$tabelle[["WE % (Mittel \u00b1 SD)"]][3], "^[+-][0-9]+,[0-9]$")
+  expect_match(abschnitt$tabelle[["R/F % (Mittel \u00b1 SD)"]][3], "^[+-][0-9]+,[0-9]$")
 })
 
 test_that("Top-Verbesserungen und schwaechste Entwicklung werden aufbereitet", {
@@ -121,19 +127,95 @@ test_that("die schwaechsten zuerst: weiterhin unter dem Normbereich, dann Rueckg
   }
 })
 
-test_that("die Lesetabelle ist verschlankt und nach Veraenderung sortiert", {
-  tab <- vergleich_tabelle(infobrief_fixture())
+test_that("die Lesetabelle zeigt alle Kinder mit ihren vorhandenen Werten", {
+  k <- infobrief_fixture()
+  # so steht sie im Anhang: ohne Hinweisspalte (die Seite ist zu schmal)
+  tab <- vergleich_tabelle(k, mit_hinweis = FALSE)
 
   expect_equal(colnames(tab),
                c("Name", "Klasse", "WE % (5 \u2192 6)", "\u0394 WE",
                  "R/F % (5 \u2192 6)", "\u0394 R/F"))
-  expect_true(all(grepl("\u2192", tab$Klasse)))
-  expect_true(all(grepl("\u2192", tab[["WE % (5 \u2192 6)"]])))
+  # alle Kinder aus beiden Jahrgaengen, nicht nur die zugeordneten
+  expect_equal(nrow(tab), nrow(k$paare))
+  expect_gt(nrow(tab), nrow(cohort_gematcht(k)))
   expect_equal(tab$Name, sort(tab$Name))               # alphabetisch
   expect_false(any(grepl("Bewertung|Ähnlichkeit", colnames(tab))))
 
+  # die Wertspalten enthalten nie ein "NA" - fehlende Seiten stehen als Strich
+  werte <- unlist(tab[, c("WE % (5 \u2192 6)", "R/F % (5 \u2192 6)")], use.names = FALSE)
+  expect_false(any(grepl("NA", werte, fixed = TRUE)))
+  expect_true(all(grepl("\u2192", werte)))
+
+  # einseitige Kinder (kein Vergleichswert): Wert sichtbar
+  einseitig <- tab[is.na(tab[["\u0394 WE"]]) & is.na(tab[["\u0394 R/F"]]), , drop = FALSE]
+  expect_gt(nrow(einseitig), 0)
+  expect_true(any(grepl("\u2192 -$", einseitig[["WE % (5 \u2192 6)"]])))
+  # Klassenspalte nennt, was vorhanden ist - kein "5c -> NA"
+  expect_false(any(grepl("NA", einseitig$Klasse, fixed = TRUE)))
+
+  # die vollstaendige Fassung (App-Tabelle, Excel) nennt zusaetzlich den Grund
+  voll <- vergleich_tabelle(k)
+  expect_true("Hinweis" %in% colnames(voll))
+  expect_equal(voll[, setdiff(colnames(voll), "Hinweis")], tab)
+  expect_true(all(nzchar(voll$Hinweis[
+    is.na(voll[["\u0394 WE"]]) & is.na(voll[["\u0394 R/F"]])])))
+  # Hinweise stammen nur aus der bekannten Liste (leer = alles vorhanden)
+  expect_true(all(voll$Hinweis %in% c(
+    "", "Vorschlag (bitte prüfen)", "getrennt", "kein Vorjahreswert",
+    "neu in der Klasse", "nicht eindeutig (nicht zugeordnet)",
+    "nicht teilgenommen (5. Klasse)", "nicht teilgenommen (6. Klasse)",
+    "nicht teilgenommen (5. und 6. Klasse)")))
+
   # ohne Vergleich gibt es keine Tabelle
   expect_null(vergleich_tabelle(NULL))
+})
+
+test_that("die Klassentabelle endet mit einer farbigen Differenzzeile", {
+  k <- infobrief_fixture()
+  abschnitt <- infobrief_abschnitt(k, seq_len(nrow(k$paare)), "c")
+  tab <- abschnitt$tabelle
+  differenz <- abschnitt$tabelle_differenz
+
+  # zwei Klassenzeilen plus die Differenzzeile
+  expect_equal(tab$Klasse[nrow(tab)], "Differenz")
+  expect_equal(nrow(tab), 3)
+  expect_equal(tab[["n (mit Werten)"]][nrow(tab)], "-")
+
+  # Differenz = Mittel der 6. Stufe minus Mittel der 5. Stufe
+  stat <- cohort_statistik(cohort_teil(k, seq_len(nrow(k$paare))))
+  mittel <- function(stufe) {
+    z <- stat[stat$Stufe == stufe & stat$Klasse == "gesamt", , drop = FALSE]
+    c(we = z$mittel_WE[1], rf = z$mittel_RF[1])
+  }
+  erwartet <- mittel(6) - mittel(5)
+  expect_equal(unname(differenz), unname(erwartet))
+  expect_match(tab[["WE % (Mittel \u00b1 SD)"]][nrow(tab)], "^[+-]")
+  expect_match(tab[["R/F % (Mittel \u00b1 SD)"]][nrow(tab)], "^[+-]")
+
+  # Farbgebung wie bei den Einzelkindern
+  ft <- tabelle_a(tab, differenz)
+  farben <- ft$body$styles$text$color$data
+  spalte_we <- which(colnames(tab) == "WE % (Mittel \u00b1 SD)")
+  spalte_rf <- which(colnames(tab) == "R/F % (Mittel \u00b1 SD)")
+  erwartete_farbe <- function(wert) if (wert > 0) "#1E7B34" else "#B00020"
+  expect_equal(as.character(farben[nrow(tab), spalte_we]),
+               as.character(erwartete_farbe(differenz[["we"]])))
+  expect_equal(as.character(farben[nrow(tab), spalte_rf]),
+               as.character(erwartete_farbe(differenz[["rf"]])))
+  # die Klassenzeilen darueber bleiben ungefaerbt
+  expect_false(identical(as.character(farben[1, spalte_we]),
+                         as.character(erwartete_farbe(differenz[["we"]]))))
+})
+
+test_that("die Kennzahlen rechnen weiter nur mit zugeordneten Kindern", {
+  k <- infobrief_fixture()
+  tab <- vergleich_tabelle(k)
+  bericht <- infobrief_bericht(k)
+
+  # die Liste ist laenger als die Auswertungsgruppe
+  expect_gt(nrow(tab), bericht$n_gematcht)
+  stat <- cohort_statistik(k)
+  expect_true(all(stat$n_werte <= bericht$n_gematcht))
 })
 
 test_that("Kindernamen werden mit Semikolon getrennt (Komma gehoert zum Namen)", {
@@ -166,14 +248,31 @@ test_that("ein echter Infobrief entsteht als docx mit Tabellen und Farben", {
     dir.create("infobrief")
     dateien <- list.files(file.path(projekt_root, "infobrief"), full.names = TRUE)
     file.copy(dateien, "infobrief", recursive = TRUE)
+    # Persoenlicher Vorlagenordner: sonst wuerde eine vom Benutzer angepasste
+    # Vorlage unter "Dokumente" die Testergebnisse veraendern
+    withr::local_options(ctest.outdir.fallback = file.path(getwd(), "benutzer"))
 
     k <- infobrief_fixture()
     ergebnis <- NULL
+    # Paket L: der Fortschritt wird waehrend des Renderns gemeldet
+    meldungen <- list()
     utils::capture.output(
       suppressMessages(
-        ergebnis <- create_infobrief(k, klassenleitung = "6c", absender = "Test, Tina")
+        ergebnis <- create_infobrief(k, klassenleitung = "6c", absender = "Test, Tina",
+                                     fortschritt = function(anteil, text) {
+                                       meldungen[[length(meldungen) + 1]] <<-
+                                         list(anteil = anteil, text = text)
+                                     })
       )
     )
+
+    anteile <- vapply(meldungen, function(m) m$anteil, numeric(1))
+    texte <- vapply(meldungen, function(m) m$text, character(1))
+    expect_gt(length(anteile), 1)
+    expect_true(all(diff(anteile) >= 0))            # nur vorwaerts
+    expect_equal(anteile[length(anteile)], 1)        # endet bei 100 %
+    expect_match(paste(texte, collapse = " "), "Word-Datei wird geschrieben",
+                 fixed = TRUE)
 
     expect_true(file.exists(ergebnis$datei))
     expect_match(basename(ergebnis$datei), "^Infobrief_5-6_5c_6c\\.docx$")

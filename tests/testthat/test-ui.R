@@ -14,7 +14,10 @@ test_that("die UI baut sich auf und enthaelt alle zentralen Elemente", {
   }
   # Eingaben und Ausgaben in Statistik und Elternbrief
   for (id in c("histWE", "histRF", "statsWE", "statsRF", "cbWEDiff", "cbAllCombined",
-               "siPlotType", "lehrername", "signatur", "qrLink", "btBrief")) {
+               "siPlotType", "lehrername", "signatur", "qrLink", "btBrief",
+               # Vorlagen und Einstellungen (Elternbrief und Infobrief)
+               "btVorlageOeffnen", "btVorlagenOrdner", "btEinstellungen",
+               "vorlagenHinweis")) {
     expect_match(html, paste0('id="', id, '"'), fixed = TRUE)
   }
   # Menueband in der Seitenleiste

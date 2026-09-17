@@ -1,7 +1,7 @@
 ## Kohorte `r d$buchstabe` (`r d$klassen_kombi`)
 
 ```{r, echo=FALSE}
-if (!is.null(d$tabelle)) tabelle_a(d$tabelle)
+if (!is.null(d$tabelle)) tabelle_a(d$tabelle, d$tabelle_differenz)
 ```
 
 Unterhalb des unteren Normbereichs (R/F-Wert unter `r d$referenz$grenze` %) liegen aktuell `r d$referenz$nachher_unter` von `r d$referenz$n` Kindern.`r d$referenz$zusatz`

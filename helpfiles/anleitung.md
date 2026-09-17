@@ -82,6 +82,8 @@ Einzelne Schüler lassen sich durch Eintrag des Namens in das Feld `Suchen` find
 
 Alle Dateien landen im Ordner `Auswertungen`. Nach dem Speichern öffnet die App diesen Ordner automatisch, der Pfad steht zusätzlich in der Meldung. Kann die App dort nicht schreiben (zum Beispiel, weil sie unter `C:\ProgramData` installiert ist und der angemeldete Benutzer dort keine Rechte hat), weicht sie auf den Ordner `C-Test Auswertung` in den eigenen Dokumenten aus – die Meldung nennt dann diesen Pfad. Ist keiner der beiden Ordner beschreibbar, meldet die App einen Fehler, statt die Arbeit stillschweigend zu verwerfen.
 
+**Zusätzliche Sicherung:** Bevor Elternbriefe oder Infobrief erstellt werden, legt die App den aktuellen Datenstand automatisch als \*.tsv im Auswertungsordner ab (`..._sicherung_<Uhrzeit>.tsv`), falls er dort noch nicht liegt. Ein vergessener Klick auf `Speichern` geht damit nicht verloren – der Ordner enthält dadurch zusätzliche Dateien, die sich gefahrlos löschen lassen.
+
 ### Statistik
 
 Hier können die eingegebenen Daten als Diagramme dargestellt werden.
@@ -107,7 +109,9 @@ Die Diagrammtypen `Entwicklung` und `Verlauf` verwenden **nur Kinder, für die b
 
 #### Vergleich je Kind (zwei Stufen)
 
-Sobald zwei Jahrgänge geladen und einander zugeordnet sind, steht unter den Diagrammen die Tabelle `Vergleich je Kind (zwei Stufen)`: eine Zeile je Kind mit `Name`, `Klasse` (z. B. `5c → 6c`), `WE % (5 → 6)`, `Δ WE`, `R/F % (5 → 6)` und `Δ R/F`. Die Spalten lassen sich durch Klick auf die Überschrift sortieren, das Suchfeld filtert nach Namen. Rückgänge stehen rot, Verbesserungen grün; ab 20 Prozentpunkten zusätzlich fett.
+Sobald zwei Jahrgänge geladen und einander zugeordnet sind, steht unter den Diagrammen die Tabelle `Vergleich je Kind (zwei Stufen)`: eine Zeile je Kind mit `Name`, `Klasse` (z. B. `5c → 6c`), `WE % (5 → 6)`, `Δ WE`, `R/F % (5 → 6)`, `Δ R/F` und `Hinweis`. Die Spalten lassen sich durch Klick auf die Überschrift sortieren, das Suchfeld filtert nach Namen. Rückgänge stehen rot, Verbesserungen grün; ab 20 Prozentpunkten zusätzlich fett.
+
+Die Liste enthält **alle** Kinder aus beiden Jahrgängen – auch die, die nur in einem Jahrgang vorkommen oder in einem Jahrgang nicht teilgenommen haben. Vorhandene Werte stehen immer da; die fehlende Seite wird als `-` gezeigt (`62,5 → -`), ein Vergleichswert `Δ` gibt es dann nicht. Die Spalte `Hinweis` nennt den Grund (`kein Vorjahreswert`, `neu in der Klasse`, `nicht teilgenommen (6. Klasse)`, `Vorschlag (bitte prüfen)` …) – im Word-Anhang fehlt sie, damit die Tabelle auf die Seite passt. Gezählt und gerechnet wird weiterhin nur mit Kindern, die in beiden Jahrgängen zugeordnet sind.
 
 ### Lehrkräfte-Infobrief
 
@@ -136,11 +140,11 @@ Der Infobrief fasst die **Entwicklung einer Klasse über zwei Jahrgänge** zusam
 #### Inhalt des Briefes
 
 -   Kopf mit Datum, Überschrift (Jahrgang X im Vergleich zu Jahrgang Y) und Anrede – die Klassenleitung, falls angegeben.
--   Je Klassenbuchstabe ein Abschnitt `Kohorte <Buchstabe>` mit einer Tabelle: eine Zeile je Klasse und Jahrgang, mit `n (mit Werten)`, `WE % (Mittel ± SD)` und `R/F % (Mittel ± SD)`.
--   Darunter: wie viele Kinder aktuell unter dem unteren Normbereich (R/F-Wert unter 65 %) liegen, wie viele davon schon im Vorjahr betroffen waren und wie viele neu hinzugekommen sind bzw. den Normbereich wieder erreicht haben.
+-   Je Klassenbuchstabe ein Abschnitt `Kohorte <Buchstabe>` mit einer Tabelle: eine Zeile je Klasse und Jahrgang, mit `n (mit Werten)`, `WE % (Mittel ± SD)` und `R/F % (Mittel ± SD)`. Darunter eine Zeile `Differenz` mit der Veränderung der Mittelwerte (aktuelle Stufe minus frühere Stufe, z. B. `+16,3`): grün bei Verbesserung, rot bei Rückgang, ab 20 Prozentpunkten fett – dieselbe Farbgebung wie bei einzelnen Kindern.
+-   Darunter: wie viele Kinder aktuell unter dem unteren Normbereich (R/F-Wert unter dem eingestellten Wert, Standard 65 %) liegen, wie viele davon schon im Vorjahr betroffen waren und wie viele neu hinzugekommen sind bzw. den Normbereich wieder erreicht haben.
 -   Ein Hinweis auf deutliche Rückgänge (mehr als 10 %); solche Werte sind farbig hervorgehoben (grün = Verbesserung, rot = Rückgang) und ab 20 Prozentpunkten zusätzlich fett.
 -   Die Tabellen `Die größten Verbesserungen` und `Die schwächste Entwicklung` mit je bis zu 5 Kindern. Bei der schwächsten Entwicklung stehen zuerst die Kinder, die weiterhin unter dem unteren Normbereich liegen.
--   Auf einer eigenen Seite `Hinweise`, danach auf einer weiteren Seite der `Anhang: Vergleich je Kind` mit allen Kindern in alphabetischer Reihenfolge (gleiche Spalten wie die Vergleichstabelle im Tab Statistik).
+-   Auf einer eigenen Seite `Hinweise`, danach auf einer weiteren Seite der `Anhang: Vergleich je Kind`: **alle** Kinder in alphabetischer Reihenfolge mit den Werten, die vorhanden sind (`Name`, `Klasse`, `WE % (5 → 6)`, `Δ WE`, `R/F % (5 → 6)`, `Δ R/F`). Fehlt ein Jahrgang, steht dort `-` – die Werte des vorhandenen Jahrgangs sind trotzdem zu sehen. Den Grund für eine fehlende Seite nennt die Liste im Tab Statistik (Spalte `Hinweis`), im Word-Anhang steht sie wegen der Seitenbreite nicht.
 
 #### Hinweise im Brief
 
@@ -159,7 +163,35 @@ Diese Punkte stehen unter `Hinweise`. Die Kinder werden dort mit Namen genannt, 
 -   Nach dem Erstellen des Briefes öffnet die App den Auswertungsordner; die Meldung nennt den Dateinamen.
 -   Sobald ein Vergleich möglich ist, enthält die Excel-Datei beim `Speichern` ein zusätzliches Blatt `Vergleich` mit derselben Tabelle; die Word-Auswertung bekommt sie als Anhang.
 
-> **Hinweis**: Ausgewertet werden nur Kinder, für die zwei Messungen vorliegen. Alle anderen (neue Kinder, fehlende Vorjahreswerte, nicht bestätigte Vorschläge, nicht teilgenommene Kinder) erscheinen unter `Hinweise` und werden nicht mitgezählt.
+> **Hinweis**: Ausgewertet und gezählt werden nur Kinder, für die zwei Messungen vorliegen. Alle anderen (neue Kinder, fehlende Vorjahreswerte, nicht bestätigte Vorschläge, nicht teilgenommene Kinder) erscheinen unter `Hinweise` und werden nicht mitgezählt – im `Anhang: Vergleich je Kind` stehen sie trotzdem mit ihren vorhandenen Werten.
+
+### Vorlagen und Einstellungen
+
+Elternbrief und Infobrief nutzen **dieselbe** Word-Vorlage. Im Tab `Elternbrief` liegt dafür der Abschnitt `Vorlagen und Einstellungen`:
+
+-   `Briefvorlage öffnen`: legt beim ersten Klick eine persönliche Kopie der Vorlage unter `Dokumente\C-Test Auswertung\vorlagen` an und öffnet sie in Word. Angepasst werden hier **Briefkopf und Logo** (Kopf- und Fußzeile), Schriftarten, Absatzformate und Seitenränder. Die Änderung gilt für alle künftigen Elternbriefe **und** für den Infobrief. Der Wortlaut der Briefe steht nicht in der Vorlage – der gehört zur App und ändert sich mit ihr.
+-   `Vorlagen-Ordner öffnen`: öffnet den Ordner mit allen anpassbaren Dateien. Neben der Vorlage (`template.docx`) liegen dort die Ergebnistabelle des Briefes (`table.png`) und die Texte zu den Kategorien (`ergebnisse.xlsx`). Auch diese beiden werden übernommen, sobald sie dort geändert vorliegen; eine unlesbare `ergebnisse.xlsx` wird ignoriert, dann gilt weiter die mitgelieferte Tabelle.
+-   `Einstellungen öffnen`: öffnet `Dokumente\C-Test Auswertung\einstellungen.txt`. Darin stehen Ihre Eingaben aus der App – `Name des Lehrers`, `Signatur`, `Link zu Übungen`, `Absender`, `Klassenleitung`, `Anzahl der Test-Items` und die Ansicht im Tab Statistik (Differenz, Gesamtübersicht, Diagrammtyp). Sie werden **automatisch gespeichert**, sobald Sie etwas ändern, und beim nächsten Start wieder in die Felder eingesetzt. Sie müssen sie also nur einmal eintragen.
+
+Die Anpassungen liegen bewusst **nicht** im Programmordner: dort würde ein Update der App sie überschreiben. Wird eine Datei im persönlichen Ordner gelöscht, gilt wieder das mitgelieferte Original (der Knopf legt es auf Wunsch erneut an).
+
+#### Die beiden R/F-Marken einstellen
+
+In derselben Einstellungsdatei stehen zwei Marken des **R/F-Werts** (Prozent):
+
+```
+rf_referenz=71.3
+rf_norm_unten=65
+```
+
+-   `rf_referenz` ist der **Referenzwert für Gesamtschulen** – die gestrichelte Linie im R/F-Diagramm.
+-   `rf_norm_unten` ist der **untere Normbereich** – die gepunktete Linie im R/F-Diagramm, die Linie im R/F-Teil des Verlaufsdiagramms, die Färbung im Entwicklungsdiagramm und die Markierungen im Lehrkräfte-Infobrief („Unterhalb des unteren Normbereichs liegen aktuell …", Reihenfolge der Tabelle „Die schwächste Entwicklung").
+
+Beide haben noch kein Feld in der Oberfläche, lassen sich aber in der Datei ändern; die Änderung gilt ab dem nächsten Start.
+
+**Die Kategorien der Kinder ändern sich dadurch nicht.** Die Grenzen, aus denen sich `Kat.`, Empfehlung und Briefe ergeben (71,3 / 66,3 / 56,3 / 36,2 % für den R/F-Wert, 65 % für den Wortschatz-Wert), gehören zum Verfahren und sind fest. Auch der Wortschatz-Wert ist unabhängig, obwohl er denselben Betrag hat wie der untere Normbereich.
+
+Erwartet werden Prozentwerte mit `rf_norm_unten` < `rf_referenz` (beide zwischen 0 und 100). Andere Angaben – Text, Werte außerhalb des Bereichs oder ein unterer Normbereich oberhalb des Referenzwerts – werden beim Start **ignoriert und gemeldet**; dann gelten wieder 71,3 und 65. Ein von Hand geänderter Wert wird von der App nie überschrieben.
 
 ### Tests
 
@@ -170,4 +202,10 @@ Rscript tests/run_tests.R            # alle Tests
 Rscript tests/run_tests.R cohort     # nur eine Datei (Filter)
 ```
 
-Voraussetzung sind die Pakete aus `req_dev.txt` (`install.packages(readLines("req_dev.txt"))`). Ohne pandoc werden die Tests übersprungen, die Word-Dateien rendern.
+Voraussetzung sind **alle** Pakete aus `req.txt` (die Tests laden die App) plus die Testpakete aus `req_dev.txt`:
+
+```
+install.packages(c(readLines("req.txt"), readLines("req_dev.txt")))
+```
+
+Ohne pandoc werden die Tests übersprungen, die Word-Dateien rendern.

@@ -11,15 +11,18 @@
 #   - Pro Klassenbuchstabe wird ein Abschnitt gerendert; die Teile werden zu
 #     einer docx zusammengefuegt (Muster wie beim Elternbrief: rendern + merge).
 
-# Zahl im deutschen Format (Dezimalkomma)
+# Zahl im deutschen Format (Dezimalkomma). Fehlende Werte werden einzeln zu "-":
+# sonst stuende in einer Tabelle mit teils fehlenden Werten "NA" (z. B. die
+# Standardabweichung einer Gruppe mit nur einem Kind mit Werten).
 de_zahl <- function(x, digits = 1) {
-  if (length(x) == 0 || all(is.na(x))) return("-")
-  formatC(x, format = "f", digits = digits, decimal.mark = ",")
+  if (length(x) == 0) return("-")
+  ifelse(is.na(x), "-",
+         formatC(x, format = "f", digits = digits, decimal.mark = ","))
 }
 
 # Zahl mit Vorzeichen (fuer Veraenderungen)
 de_vz <- function(x, digits = 1) {
-  if (length(x) == 0 || all(is.na(x))) return("-")
+  if (length(x) == 0) return("-")
   ifelse(is.na(x), "-", paste0(ifelse(x > 0, "+", ""), de_zahl(x, digits)))
 }
 
@@ -77,7 +80,8 @@ liste_absatz <- function(titel, tabelle, einheit = " %", spalte = "\u0394 R/F") 
 #   A4-Seite heraus: 21 cm - 2 x 2,5 cm Rand = 16 cm Textbreite)
 # - Veraenderungsspalten mit Vorzeichen und farbig (fett ab 20)
 tabelle_infobrief <- function(df, farb_spalten = character(0), schrift = 8.5,
-                              breiten = NULL, vorzeichen_spalten = character(0)) {
+                              breiten = NULL, vorzeichen_spalten = character(0),
+                              farb_zellen = list()) {
   if (is.null(df) || nrow(df) == 0) return(NULL)
   anzeige <- as.data.frame(df, check.names = FALSE, stringsAsFactors = FALSE)
   for (spalte in colnames(anzeige)) {
@@ -105,6 +109,20 @@ tabelle_infobrief <- function(df, farb_spalten = character(0), schrift = 8.5,
       }
     }
   }
+  # einzelne Zellen faerben (z. B. die Differenzzeile der Klassentabelle);
+  # gleiche Farblogik wie bei den Einzelkindern: gruen aufwaerts, rot abwaerts,
+  # ab 20 Prozentpunkten zusaetzlich fett
+  for (zelle in farb_zellen) {
+    if (is.null(zelle$wert) || length(zelle$wert) == 0 || is.na(zelle$wert)) next
+    if (!zelle$spalte %in% colnames(anzeige)) next
+    zeile <- zelle$zeile
+    if (is.null(zeile) || zeile < 1 || zeile > nrow(anzeige)) next
+    ft <- flextable::color(ft, i = zeile, j = zelle$spalte,
+                           color = if (zelle$wert > 0) .infobrief_gruen else .infobrief_rot)
+    if (abs(zelle$wert) >= .infobrief_fett_ab) {
+      ft <- flextable::bold(ft, i = zeile, j = zelle$spalte)
+    }
+  }
   # Breiten in cm vorgeben, damit die Tabelle in die Seite passt
   if (!is.null(breiten)) {
     stopifnot(length(breiten) == ncol(anzeige))
@@ -121,15 +139,27 @@ tabelle_infobrief <- function(df, farb_spalten = character(0), schrift = 8.5,
 .breiten_b <- c(5.4, 3.4, 1.8, 3.4, 1.8)                             # 15,8 cm
 .breiten_lese <- c(4.2, 2.3, 3.1, 1.6, 3.1, 1.6)                     # 15,9 cm
 
-# Tabelle A: Kennzahlen je Klasse (nur gematchte Gruppe)
-tabelle_a <- function(df) tabelle_infobrief(df, breiten = .breiten_a)
+# Tabelle A: Kennzahlen je Klasse (nur gematchte Gruppe). differenz sind die
+# Zahlen der Differenzzeile (c(we=, rf=)); sie wird wie die Werte einzelner
+# Kinder farbig gesetzt.
+tabelle_a <- function(df, differenz = NULL) {
+  farb_zellen <- list()
+  if (!is.null(differenz) && !is.null(df) && nrow(df) > 0) {
+    farb_zellen <- list(
+      list(spalte = "WE % (Mittel \u00b1 SD)", zeile = nrow(df),
+           wert = differenz[["we"]]),
+      list(spalte = "R/F % (Mittel \u00b1 SD)", zeile = nrow(df),
+           wert = differenz[["rf"]]))
+  }
+  tabelle_infobrief(df, breiten = .breiten_a, farb_zellen = farb_zellen)
+}
 # Tabelle B: Kinderliste (Top 5 bzw. schwaechste 5), ohne Klassenspalte
 tabelle_b <- function(df) {
   tabelle_infobrief(df, farb_spalten = c("\u0394 WE", "\u0394 R/F"),
                     vorzeichen_spalten = c("\u0394 WE", "\u0394 R/F"),
                     breiten = .breiten_b)
 }
-# Anhang: Vergleich je Kind (mit Klassenspalte)
+# Anhang: Vergleich je Kind (alle Kinder, mit Klassenspalte)
 tabelle_lese <- function(df) {
   tabelle_infobrief(df, farb_spalten = c("\u0394 WE", "\u0394 R/F"),
                     vorzeichen_spalten = c("\u0394 WE", "\u0394 R/F"),
@@ -156,9 +186,16 @@ cohort_teil <- function(x, idx) {
 
 # Tabelle A aufbereiten: eine Zeile je Klasse, Mittelwert mit SD kombiniert,
 # Kinder mit Werten in Klammern. Bewusst schmal (4 Spalten, ohne Stufenspalte -
-# die Klasse enthaelt die Stufe bereits).
+# die Klasse enthaelt die Stufe bereits). Darunter eine Zeile "Differenz" mit
+# der Veraenderung der Mittelwerte (aktuelle Stufe minus fruehere Stufe).
+#
+# Rueckgabe: list(tabelle = <data.frame>, differenz = c(we =, rf =)) - die
+# Zahlen der Differenzzeile fuer die Farbgebung (NULL, wenn es keine zwei
+# Stufen gibt).
 .infobrief_tabelle_a <- function(statistik) {
-  if (is.null(statistik) || nrow(statistik) == 0) return(NULL)
+  if (is.null(statistik) || nrow(statistik) == 0) {
+    return(list(tabelle = NULL, differenz = NULL))
+  }
   tab <- statistik
   # bei nur einer Klasse je Stufe waere "gesamt" eine Doppelung
   klassen_je_stufe <- table(tab$Stufe[tab$Klasse != "gesamt"])
@@ -176,7 +213,25 @@ cohort_teil <- function(x, idx) {
     check.names = FALSE, stringsAsFactors = FALSE
   )
   rownames(daten.frame) <- NULL
-  daten.frame
+
+  # Differenz der Mittelwerte zwischen den beiden Stufen
+  stufen <- sort(unique(stats::na.omit(tab$Stufe)))
+  differenz <- NULL
+  if (length(stufen) == 2) {
+    frueher <- .infobrief_mittel(tab, stufen[1])
+    spaeter <- .infobrief_mittel(tab, stufen[2])
+    differenz <- c(we = spaeter$we_num - frueher$we_num,
+                   rf = spaeter$rf_num - frueher$rf_num)
+    daten.frame <- rbind(daten.frame, data.frame(
+      Klasse = "Differenz",
+      "n (mit Werten)" = "-",
+      "WE % (Mittel \u00b1 SD)" = de_vz(differenz[["we"]]),
+      "R/F % (Mittel \u00b1 SD)" = de_vz(differenz[["rf"]]),
+      check.names = FALSE, stringsAsFactors = FALSE))
+    rownames(daten.frame) <- NULL
+  }
+
+  list(tabelle = daten.frame, differenz = differenz)
 }
 
 # Datensatz fuer EINEN Abschnitt (einen Klassenbuchstaben)
@@ -217,6 +272,8 @@ infobrief_abschnitt <- function(cohort, idx, buchstabe, rueckgang = 10, top = 5,
                                " den Normbereich wieder erreicht."))
   }
 
+  tabelle_aufbereitet <- .infobrief_tabelle_a(statistik)
+
   list(
     buchstabe = buchstabe,
     klassen_kombi = if (length(klassen) > 0) paste(klassen, collapse = " \u2192 ") else "-",
@@ -228,7 +285,8 @@ infobrief_abschnitt <- function(cohort, idx, buchstabe, rueckgang = 10, top = 5,
                     n = referenz$n,
                     nachher_unter = referenz$nachher_unter,
                     zusatz = paste(zusatz, collapse = "")),
-    tabelle = .infobrief_tabelle_a(statistik),
+    tabelle = tabelle_aufbereitet$tabelle,
+    tabelle_differenz = tabelle_aufbereitet$differenz,
     rangliste_top = rangliste$verbesserungen,
     rangliste_schwach = rangliste$schwach
   )
@@ -324,7 +382,8 @@ infobrief_bericht <- function(cohort, rueckgang = 10, top_prosa = 3,
     } else "",
     abschnitte = abschnitte,
     hinweise = hinweise,
-    lesetabelle = vergleich_tabelle(cohort)
+    # im Anhang ohne Hinweisspalte: die Seite ist zu schmal dafuer
+    lesetabelle = vergleich_tabelle(cohort, mit_hinweis = FALSE)
   )
 }
 
@@ -377,7 +436,17 @@ infobrief_vorbereiten <- function(quelle = file.path(getwd(), "infobrief")) {
 
 # Infobrief erstellen: Kopf + ein Abschnitt je Buchstabe + Abschluss in einem Lauf
 create_infobrief <- function(cohort, klassenleitung = "", absender = "",
-                             rueckgang = 10, top_prosa = 3, top = 5, schwach = 5) {
+                             rueckgang = 10, top_prosa = 3, top = 5, schwach = 5,
+                             fortschritt = NULL) {
+  # fortschritt(anteil, text) meldet den Stand an die Oberflaeche (0 bis 1)
+  melde <- function(anteil, text) {
+    if (is.function(fortschritt)) {
+      fortschritt(max(0, min(1, anteil)), text)
+    }
+    invisible(NULL)
+  }
+
+  melde(0.05, "Daten werden zusammengestellt ...")
   bericht <- infobrief_bericht(cohort, rueckgang = rueckgang, top_prosa = top_prosa,
                                top = top, schwach = schwach)
   if (bericht$n_gematcht == 0) {
@@ -385,6 +454,7 @@ create_infobrief <- function(cohort, klassenleitung = "", absender = "",
          call. = FALSE)
   }
 
+  melde(0.2, "Vorlagen werden vorbereitet ...")
   ziel_ordner <- createFilePath(NULL, "")
   vorlage <- infobrief_vorbereiten()
   on.exit(vorlagen_aufraeumen(vorlage), add = TRUE)
@@ -396,7 +466,10 @@ create_infobrief <- function(cohort, klassenleitung = "", absender = "",
                  gsub("[^A-Za-z0-9]+", "_",
                       paste(unique(c(cohort$klassen_alt, cohort$klassen_neu)),
                             collapse = "_")))
-  datei <- file.path(ziel_ordner, paste0(name, ".docx"))
+  datei <- .pfad_nativ(file.path(ziel_ordner, paste0(name, ".docx")))
+  # Eine in Word geoeffnete Zieldatei kann nicht ersetzt werden: sofort melden,
+  # statt erst nach dem Rendern zu scheitern
+  .pruefe_datei_frei(datei)
 
   kopf <- bericht
   kopf$anrede <- infobrief_anrede(klassenleitung)
@@ -406,8 +479,10 @@ create_infobrief <- function(cohort, klassenleitung = "", absender = "",
                                  lesetabelle = bericht$lesetabelle))
 
   rmd <- .infobrief_rmd_bauen(vorlage, daten, file.path(vorlage, "infobrief_gesamt.Rmd"))
+  melde(0.35, "Word-Datei wird geschrieben (pandoc) ...")
   rmarkdown::render(rmd, output_file = datei, quiet = TRUE)
   message("Infobrief gespeichert unter: ", datei)
+  melde(1, "Infobrief fertig")
 
   list(datei = datei, bericht = bericht)
 }

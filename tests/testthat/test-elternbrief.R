@@ -8,6 +8,9 @@ brief_test_umgebung <- function(code) {
     dateien <- list.files(file.path(projekt_root, "elternbrief"), full.names = TRUE)
     file.copy(dateien, "elternbrief", recursive = TRUE)
     dir.create("Auswertungen")
+    # Persoenlicher Vorlagenordner: sonst wuerde eine vom Benutzer angepasste
+    # Vorlage unter "Dokumente" die Testergebnisse veraendern
+    withr::local_options(ctest.outdir.fallback = file.path(getwd(), "benutzer"))
     force(code)
   })
 }
@@ -84,6 +87,44 @@ test_that("fuer ein einzelnes Kind entsteht ein Elternbrief", {
     expect_equal(anzahl_anreden(text), 1)
     # ein einzelner Brief wird nicht als altChunk angehaengt
     expect_equal(anzahl_altchunks(dateien), 0)
+  })
+})
+
+# Der QR-Code mit dem Link zur Uebungssammlung ist einer der Hauptgruende fuer
+# den Elternbrief. Dieser Test deckt den Pfad ab, der bisher ungetestet war:
+# Das Bild entsteht im Temp-Verzeichnis und muss in den Brief hinein.
+test_that("mit Link entsteht ein Brief mit QR-Code und Linktext", {
+  skip_if_not(rmarkdown::pandoc_available(), "pandoc nicht gefunden")
+
+  brief_test_umgebung({
+    # ohne Internet im Test: sonst wuerde der Link ueber tinyurl gekuerzt
+    kurzlink_zuruecksetzen()
+    testthat::local_mocked_bindings(
+      req_perform = function(...) stop("kein Netz im Test"),
+      .package = "httr2"
+    )
+
+    df <- lade_fixture("klasse_5c.tsv")[1, ]
+
+    # Vergleichslauf ohne Link: nur die mitgelieferten Bilder
+    erzeuge_briefe(df, lehrername = "Test, Tina")
+    ohne <- erwartete_datei()
+    expect_length(ohne, 1)
+    bilder_ohne <- sum(grepl("^word/media/", utils::unzip(ohne, list = TRUE)$Name))
+
+    erzeuge_briefe(df, lehrername = "Test, Tina",
+                   qrLink = "https://example.org/uebungen")
+    dateien <- erwartete_datei()
+    expect_length(dateien, 1)
+
+    # der Link steht als Text im Brief
+    text <- brief_text(dateien)
+    expect_match(text, "https://example.org/uebungen", fixed = TRUE)
+    expect_match(text, "Sammlung", fixed = TRUE)
+
+    # und der QR-Code liegt als zusaetzliches Bild im Dokument
+    bilder_mit <- sum(grepl("^word/media/", utils::unzip(dateien, list = TRUE)$Name))
+    expect_gt(bilder_mit, bilder_ohne)
   })
 })
 
@@ -239,5 +280,52 @@ test_that("scheitern alle Briefe, gibt es einen klaren Fehler", {
     expect_match(fehlermeldung, "kein Elternbrief erstellt werden")
     expect_match(fehlermeldung, "kein Rendern moeglich")
     expect_length(erwartete_datei(), 0)
+  })
+})
+
+test_that("die Brief-Erzeugung meldet ihren Fortschritt", {
+  # Paket L: die App zeigt damit einen Fortschrittsbalken. Getestet wird die
+  # Rueckmeldung selbst - ohne echtes Rendern (compose_letter wirft sofort).
+  brief_test_umgebung({
+    df <- lade_fixture("klasse_5c.tsv")[1:4, ]
+    meldungen <- list()
+
+    tryCatch(
+      mit_compose_letter(
+        function(echt) function(...) stop("kein Rendern im Test"),
+        {
+          utils::capture.output(suppressMessages(
+            create_letters(df, lehrername = "Test, Tina",
+                           fortschritt = function(anteil, text) {
+                             meldungen[[length(meldungen) + 1]] <<-
+                               list(anteil = anteil, text = text)
+                           })))
+          NULL
+        }
+      ),
+      error = function(e) NULL)
+
+    anteile <- vapply(meldungen, function(m) m$anteil, numeric(1))
+    texte <- vapply(meldungen, function(m) m$text, character(1))
+    alle <- paste(texte, collapse = " | ")
+
+    # mindestens: Vorbereitung + vier Kinder
+    expect_gte(length(anteile), 5)
+    expect_equal(anteile[1], 0)
+    expect_true(all(diff(anteile) >= 0))              # nur vorwaerts
+    expect_true(all(anteile >= 0 & anteile <= 1))      # immer im gueltigen Bereich
+    expect_match(alle, "Vorlagen werden vorbereitet", fixed = TRUE)
+    expect_match(alle, "Brief 1 von 4", fixed = TRUE)
+    expect_match(alle, "Brief 4 von 4", fixed = TRUE)
+    expect_match(alle, "Testmann, Anna", fixed = TRUE)
+  })
+})
+
+test_that("fehlende Spalten fuer die Briefe werden klar gemeldet", {
+  brief_test_umgebung({
+    df <- lade_fixture("klasse_5c.tsv")[1:2, ]
+    ohne_kat <- df[, setdiff(colnames(df), "Kat.")]
+    expect_error(create_letters(ohne_kat, lehrername = "Test, Tina"),
+                 "fehlen Spalten: Kat\\.")
   })
 })

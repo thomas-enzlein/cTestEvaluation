@@ -37,18 +37,36 @@ if (file.exists(file.path(pandoc_dir, "pandoc.exe"))) {
 }
 
 # 3) Fehlende Pakete nur im Ausnahmefall nachinstallieren. Im Normalfall ist
-#    alles im Setup enthalten; ohne gebuendelte Bibliothek (Entwicklungsbetrieb
-#    mit systemweitem R) ist Internet noetig.
+#    alles im Setup enthalten. Geprueft wird, ob sich die Pakete wirklich laden
+#    lassen: ein vorhandener, aber leerer Bibliotheksordner (nur R-Grundpakete,
+#    wie bei einem unvollstaendigen Build) darf nicht als "alles da" gelten -
+#    sonst startet die App auf einem fremden Rechner nicht.
 req_datei <- file.path(wd, "req.txt")
-if (file.exists(req_datei) && !dir.exists(lib_gebunden)) {
-  req <- readLines(req_datei, warn = FALSE)
-  req <- trimws(req[nzchar(trimws(req))])
-  fehlend <- req[!(req %in% rownames(installed.packages()))]
-  if (length(fehlend) > 0) {
-    cat("Fehlende Pakete werden installiert: ", paste(fehlend, collapse = ", "), "\n",
+if (file.exists(req_datei)) {
+  req <- trimws(readLines(req_datei, warn = FALSE))
+  req <- req[nzchar(req)]
+
+  fehlt_noch <- function(pkgs) {
+    pkgs[!vapply(pkgs, function(p) requireNamespace(p, quietly = TRUE), logical(1))]
+  }
+  installiere <- function(pkgs, lib) {
+    if (length(pkgs) == 0) return(character(0))
+    cat("Fehlende Pakete werden installiert: ", paste(pkgs, collapse = ", "), "\n",
         sep = "")
-    try(install.packages(fehlend, lib = .libPaths()[1],
-                         repos = "https://cloud.r-project.org"), silent = TRUE)
+    try(install.packages(pkgs, lib = lib, repos = "https://cloud.r-project.org"),
+        silent = TRUE)
+    fehlt_noch(pkgs)
+  }
+
+  fehlend <- fehlt_noch(req)
+  if (length(fehlend) > 0) {
+    # erst in die mitgelieferte Bibliothek, sonst in die des Benutzers
+    offen <- installiere(fehlend, lib_gebunden)
+    offen <- installiere(offen, .libPaths()[1])
+    if (length(offen) > 0) {
+      cat("Nicht ladbare Pakete: ", paste(offen, collapse = ", "),
+          " - bitte die Anwendung neu installieren.\n", sep = "")
+    }
   }
 }
 

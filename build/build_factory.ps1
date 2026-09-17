@@ -241,18 +241,24 @@ pkgs <- readLines("$(Ohne-Zitat $paketDatei)", warn = FALSE)
 pkgs <- trimws(pkgs[nzchar(trimws(pkgs))])
 lib  <- "$(Ohne-Zitat $RLib)"
 cat("Repository: ", "$Repo", "\n", sep = "")
-fehlend <- pkgs[!(pkgs %in% rownames(installed.packages()))]
+# Wichtig: nur die Auslieferungsbibliothek zaehlt. Ohne lib.loc fragt
+# installed.packages() alle Bibliotheken im Suchpfad - auf einem Rechner mit
+# gefuellter Benutzerbibliothek (Entwicklungsrechner, CI-Runner mit
+# Testpaketen) meldet der Schritt dann "nichts zu tun" und der Installer
+# enthaelt am Ende kein einziges App-Paket.
+vorhanden <- rownames(installed.packages(lib.loc = lib))
+fehlend <- pkgs[!(pkgs %in% vorhanden)]
 cat("zu installieren: ", if (length(fehlend) == 0) "nichts" else paste(fehlend, collapse = ", "),
     "\n", sep = "")
 if (length(fehlend) > 0) {
   install.packages(fehlend, lib = lib, repos = "$Repo")
 }
-noch <- pkgs[!(pkgs %in% rownames(installed.packages()))]
+noch <- pkgs[!(pkgs %in% rownames(installed.packages(lib.loc = lib)))]
 if (length(noch) > 0) {
   cat("NOCH-FEHLEND: ", paste(noch, collapse = ", "), "\n", sep = "")
   quit(status = 1)
 }
-cat("alle Pakete vorhanden\n")
+cat("alle Pakete in der Auslieferungsbibliothek vorhanden\n")
 "@
         Set-TextOhneBom -Pfad $rDatei -Text $code
         # Ausgabe direkt auf die Konsole: die Funktion liefert nur das Ergebnis
@@ -323,6 +329,56 @@ cat("alle Pakete vorhanden\n")
     }
     if (Test-Path $Rscript) { Ok "R im Auslieferungsordner: $(& $Rscript -e 'cat(as.character(getRversion()))')" }
 }
+
+# ----------------------------------------------------------------------------
+# 1b. Endkontrolle: sind die App-Pakete wirklich im Auslieferungsordner?
+# ----------------------------------------------------------------------------
+# Ein vorhandener, aber leerer Bibliotheksordner (nur R-Grundpakete) faellt
+# sonst erst auf dem Rechner eines Nutzers auf: dort gibt es keine
+# Benutzerbibliothek, aus der sich die Pakete nachladen liessen. Geprueft wird
+# deshalb mit ausgeblendeter Benutzerbibliothek - das entspricht einem fremden
+# Rechner.
+Schritt "Endkontrolle: App-Pakete im Auslieferungsordner"
+if (!(Test-Path $Rscript)) { Abbruch "Kein R im Auslieferungsordner - die Laufzeit fehlt." }
+if (!(Test-Path $TempOrdner)) { New-Item -ItemType Directory -Path $TempOrdner | Out-Null }
+
+$pruefReq = Join-Path $RepoRoot "req.txt"
+$pruefLib = $RLib
+$pruefDatei = Join-Path $TempOrdner "_pruefe_pakete.R"
+$pruefCode = @"
+pkgs <- readLines("$(Ohne-Zitat $pruefReq)", warn = FALSE)
+pkgs <- trimws(pkgs[nzchar(trimws(pkgs))])
+vorhanden <- rownames(installed.packages(lib.loc = "$(Ohne-Zitat $pruefLib)"))
+fehlt <- pkgs[!(pkgs %in% vorhanden)]
+if (length(fehlt) > 0) {
+  cat("NICHT IM AUSLIEFERUNGSORDNER: ", paste(fehlt, collapse = ", "), "\n", sep = "")
+  quit(status = 1)
+}
+# Stichprobe laden: eine vorhandene, aber defekte Installation faellt so auf
+probe <- c("shiny", "shinydashboard", "DT", "officer", "officedown", "rmarkdown", "readr")
+nicht_ladbar <- probe[!vapply(probe, requireNamespace, logical(1), quietly = TRUE)]
+if (length(nicht_ladbar) > 0) {
+  cat("NICHT LADBAR: ", paste(nicht_ladbar, collapse = ", "), "\n", sep = "")
+  quit(status = 1)
+}
+cat("Auslieferungsordner enthaelt alle ", length(pkgs), " Pakete\n", sep = "")
+"@
+Set-TextOhneBom -Pfad $pruefDatei -Text $pruefCode
+
+$leereLib = Join-Path $TempOrdner "leere_lib"
+if (Test-Path $leereLib) { Remove-Item -Recurse -Force $leereLib }
+New-Item -ItemType Directory -Path $leereLib | Out-Null
+$env:R_LIBS_USER = $leereLib
+$env:R_LIBS_SITE = $leereLib
+& $Rscript $pruefDatei | Out-Host
+$pruefOk = ($LASTEXITCODE -eq 0)
+Remove-Item Env:\R_LIBS_USER -ErrorAction SilentlyContinue
+Remove-Item Env:\R_LIBS_SITE -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force $leereLib -ErrorAction SilentlyContinue
+if (!$pruefOk) {
+    Abbruch "Der Auslieferungsordner enthaelt nicht alle R-Pakete. Der Installer wuerde auf einem fremden Rechner nicht starten. Laufzeit mit -ForceRuntime neu aufbauen."
+}
+Ok "Auslieferungsordner enthaelt alle R-Pakete"
 
 # ----------------------------------------------------------------------------
 # 2. Quellcode spiegeln

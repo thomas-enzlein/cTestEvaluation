@@ -47,7 +47,9 @@ Die folgende Tabelle gibt einen Überblick über die möglichen Ergebnisse des C
 
 ```{r, echo=FALSE, include=FALSE}
 # check if link was provided and generate linktext and qr code if so.
-qr <- generate_qrcode(qrLink)
+# Das Bild liegt neben diesem Rmd: absolute Pfade wandelt knitr beim Einbetten
+# relativ zum Ausgabeordner um und findet die Datei dann nicht mehr.
+qr <- generate_qrcode(qrLink, zielordner = dirname(knitr::current_input(dir = TRUE)))
 ```
 
 ```{r, echo=FALSE, results='asis'}

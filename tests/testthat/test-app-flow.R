@@ -234,8 +234,9 @@ test_that("der Stufenvergleich fuellt Auswahl, Tabelle und Status", {
 
       # Vergleichstabelle im Statistik-Tab
       expect_false(is.null(output$tabVergleich))
-      expect_match(als_text(output$vergleichTabHinweis), "Kinder mit zwei Messungen",
-                   fixed = TRUE)
+      hinweis <- als_text(output$vergleichTabHinweis)
+      expect_match(hinweis, "Kinder in der Liste", fixed = TRUE)
+      expect_match(hinweis, "in beiden Jahrgängen zugeordnet", fixed = TRUE)
 
       # Entwicklungsdiagramm nutzt dieselbe Zuordnung
       ohne_bekannte_warnungen(session$setInputs(siPlotType = "Entwicklung"))

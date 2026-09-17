@@ -11,22 +11,43 @@ library(tidyr)
 # Histogramm, Dichte oder Entwicklungsdiagramm erstellen
 createPlot<- function(df, x, fill, xlab, bins = 30, allCombined = TRUE,
                       type = "Histogramm", cohort = NULL) {
+  # Fehlende Spalten duerfen die Ansicht nicht sprengen: bei den
+  # Verteilungsdiagrammen braucht jede Auswertungsspalte eine Spalte in den
+  # Daten - fehlt sie, wird ein Hinweis gezeichnet statt abzubrechen.
+  if (type %in% c("Histogramm", "Dichte") && !x %in% names(df)) {
+    return(plot_hinweis(paste0("Spalte '", x, "' fehlt in den Daten.")))
+  }
+  # ohne Kategorie-Spalte einfarbig zeichnen (kein Abbruch)
+  if (type == "Histogramm" && !fill %in% names(df)) {
+    df[[".ctest_fill"]] <- "alle"
+    fill <- ".ctest_fill"
+  }
+  # Name und Klasse werden im Diagramm angezeigt: fehlen sie, leer ergaenzen
+  if (!"Klasse" %in% names(df)) df[["Klasse"]] <- ""
+  if (!"Name" %in% names(df)) df[["Name"]] <- ""
+
   df <- df %>%
     mutate(NameKlasse = paste0(Name, ", ", Klasse))
 
+  farben <- if (identical(fill, ".ctest_fill")) NULL else cols
+  grenzen <- if (identical(fill, ".ctest_fill")) NULL else lvls
+
   p <- switch(type,
               "Histogramm" = {
-                ggplot(df, aes(x = !!sym(x), 
+                p <- ggplot(df, aes(x = !!sym(x), 
                                text = NameKlasse, 
                                fill = !!sym(fill))) +
                   geom_histogram(bins = bins, 
                                  col = "black", 
                                  show.legend = FALSE) +
-                  scale_fill_manual(values = cols, 
-                                    limits = lvls) +
                   labs(x = xlab, 
                        y = "Anzahl") +
                   theme(legend.position = 'none')
+                # Kategoriefarben nur, wenn es die Kategorie-Spalte gibt
+                if (!is.null(farben)) {
+                  p <- p + scale_fill_manual(values = farben, limits = grenzen)
+                }
+                p
               },
               
               "Dichte" = {
@@ -77,9 +98,20 @@ plot_hinweis <- function(text) {
     theme_void()
 }
 
+# Referenzlinien fuer die R/F-Verteilung: gestrichelt der Referenzwert
+# (rf_referenz), gepunktet der untere Normbereich (rf_norm_unten). Beide Marken
+# stehen in den Einstellungen; die Kategorien haengen nicht daran.
+referenz_linien <- function(p) {
+  rw <- referenzwerte()
+  p +
+    geom_vline(xintercept = rw$referenz, linetype = "dashed", color = "grey40") +
+    geom_vline(xintercept = rw$norm_unten, linetype = "dotted", color = "grey40")
+}
+
 # Verlaufsdiagramm fuer zwei Messzeitpunkte: eine Linie je Kind (nur
 # zugeordnete Kinder), getrennt nach WE- und R/F-Wert.
-plot_verlauf <- function(cohort, grenze = 65) {
+plot_verlauf <- function(cohort, grenze = .normgrenze("R/F"),
+                         grenze_we = .normgrenze("WE")) {
   if (is.null(cohort) || !inherits(cohort, "cohort")) {
     return(plot_hinweis("Bitte zwei Stufen auswaehlen (Menue links)"))
   }
@@ -106,10 +138,18 @@ plot_verlauf <- function(cohort, grenze = 65) {
   lang$Kennzahl <- factor(lang$Kennzahl,
                           levels = c("WE-Wert in %", "R/F-Wert in %"))
 
+  # Je Facette die passende Grenze: fuer den R/F-Wert der einstellbare untere
+  # Normbereich, fuer den Wortschatz der feste Wert des Verfahrens.
+  linien <- tibble::tibble(
+    Kennzahl = factor(c("WE-Wert in %", "R/F-Wert in %"),
+                      levels = levels(lang$Kennzahl)),
+    Grenze = c(grenze_we, grenze))
+
   ggplot(lang, aes(x = Stufe, y = Wert, group = Name, color = Name)) +
     geom_line(linewidth = 0.7, alpha = 0.8) +
     geom_point(size = 2) +
-    geom_hline(yintercept = grenze, linetype = "dotted", color = "grey40") +
+    geom_hline(data = linien, aes(yintercept = Grenze),
+               linetype = "dotted", color = "grey40") +
     facet_wrap(~Kennzahl, ncol = 1) +
     scale_x_continuous(breaks = c(cohort$stufe_alt, cohort$stufe_neu)) +
     labs(x = "Jahrgangsstufe", y = NULL) +
@@ -162,6 +202,11 @@ plot_veraenderung <- function(cohort, variable = c("WE-%", "R/F-%", "diff")) {
                 if (variable != "diff") variable else "Diff. WE-R/F",
                 k1, "->", k2)
 
+  # Grenze fuer die Faerbung des aktuellen Werts: beim R/F-Wert der eingestellte
+  # untere Normbereich, beim Wortschatz der feste Wert des Verfahrens
+  # (fuer "diff" greifen die eigenen Baender weiter unten).
+  norm_grenze <- if (identical(variable, "R/F-%")) .normgrenze("R/F") else .normgrenze("WE")
+
   grenzen <- range(df$Veraenderung, na.rm = TRUE)
   puffer <- diff(grenzen) * 0.33
   if (!is.finite(puffer) || puffer == 0) puffer <- 1
@@ -188,8 +233,8 @@ plot_veraenderung <- function(cohort, variable = c("WE-%", "R/F-%", "diff")) {
           color = case_when(
             variable == "diff" & Aktuell >= 20 ~ "darkred",
             variable == "diff" & Aktuell < 20 ~ "black",
-            Aktuell >= 65 ~ "darkgreen",
-            Aktuell < 65 ~ "darkred"
+            Aktuell >= norm_grenze ~ "darkgreen",
+            Aktuell < norm_grenze ~ "darkred"
           )),
       hjust = 0, fontface = "bold", size = 3.3
     ) +

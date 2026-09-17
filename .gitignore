@@ -25,5 +25,6 @@ vignettes/*.pdf
 Auswertungen/*
 5a_2024.tsv
 4kat_test.R
-~$ternbrief.docx
+# Word-Sperrdateien (~$Infobrief_..., ~$Elternbriefe_...)
+~$*
 template_1.docx

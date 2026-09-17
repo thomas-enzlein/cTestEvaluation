@@ -128,6 +128,75 @@ test_that("namensgleiche Kinder werden nicht automatisch zugeordnet", {
   expect_true("Testmann, Anna" %in% k$paare$Name_Neu[k$paare$Status == "mehrdeutig"])
 })
 
+test_that("die Vergleichstabelle zeigt vorhandene Werte auch einseitig", {
+  # Anna: beide Jahre | Ben: in beiden Jahren, aber ohne Werte in der 6
+  # Can: nur in der 5 (kein Partner)  |  Dina: nur in der 6 (neu)
+  df <- tibble::tibble(
+    Name = c("Albers, Anna", "Bauer, Ben", "Cem, Can",
+             "Albers, Anna", "Bauer, Ben", "Dorn, Dina"),
+    Klasse = c("5c", "5c", "5c", "6c", "6c", "6c"),
+    `WE-Wert` = c(30, 25, 20, 34, NA, 28),
+    `WE-%` = c(75, 62.5, 50, 85, NA, 70),
+    `R/F-Wert` = c(24, 20, 16, 28, NA, 22),
+    `R/F-%` = c(60, 50, 40, 70, NA, 55),
+    Kat. = c("3C", "3D", "4D", "2C", "0", "3C"),
+    Empfehlung = "x", Items = 40)
+
+  k <- build_cohort(df, 5, 6)
+  tab <- vergleich_tabelle(k)
+  zeile <- function(name) tab[tab$Name == name, , drop = FALSE]
+
+  # alle vier Kinder stehen in der Liste
+  expect_equal(nrow(tab), 4)
+
+  # Anna: beide Jahre
+  anna <- zeile("Albers, Anna")
+  expect_equal(anna$Klasse, "5c \u2192 6c")
+  expect_equal(anna[["WE % (5 \u2192 6)"]], "75,0 \u2192 85,0")
+  expect_equal(anna[["\u0394 WE"]], 10)
+  expect_equal(anna$Hinweis, "")
+
+  # Ben: Werte aus der 5 bleiben sichtbar, fehlende Seite als Strich
+  ben <- zeile("Bauer, Ben")
+  expect_equal(ben[["WE % (5 \u2192 6)"]], "62,5 \u2192 -")
+  expect_equal(ben[["R/F % (5 \u2192 6)"]], "50,0 \u2192 -")
+  expect_true(is.na(ben[["\u0394 WE"]]))
+  expect_equal(ben$Hinweis, "nicht teilgenommen (6. Klasse)")
+
+  # Can: nur in der 5 - Wert da, Klassenspalte ohne NA
+  can <- zeile("Cem, Can")
+  expect_equal(can$Klasse, "5c")
+  expect_equal(can[["WE % (5 \u2192 6)"]], "50,0 \u2192 -")
+  expect_equal(can$Hinweis, "kein Vorjahreswert")
+
+  # Dina: nur in der 6
+  dina <- zeile("Dorn, Dina")
+  expect_equal(dina$Klasse, "6c")
+  expect_equal(dina[["WE % (5 \u2192 6)"]], "- \u2192 70,0")
+  expect_equal(dina$Hinweis, "neu in der Klasse")
+
+  # die Wertspalten enthalten nirgends ein "NA"
+  werte <- unlist(tab[, c("WE % (5 \u2192 6)", "R/F % (5 \u2192 6)")], use.names = FALSE)
+  expect_false(any(grepl("NA", werte, fixed = TRUE)))
+
+  # die Auswertung selbst nutzt weiter nur die zugeordneten Kinder
+  expect_equal(nrow(cohort_gematcht(k)), 2)             # Anna und Ben
+  # "unter dem Normbereich" vergleicht alt gegen neu: nur Anna hat beide Werte
+  expect_equal(unter_referenz(k)$n, 1)
+  expect_equal(nrow(cohort_statistik(k)[cohort_statistik(k)$Klasse == "gesamt", ]), 2)
+})
+
+test_that("die Hinweis-Spalte gibt es nur in der Nachschlageliste", {
+  k <- kohorte_fixture()
+  g <- cohort_gematcht(k)
+
+  expect_false("Hinweis" %in% colnames(cohort_tabelle(g, mit_klasse = FALSE)))
+  expect_true("Hinweis" %in% colnames(cohort_tabelle(g, mit_hinweis = TRUE)))
+  # die Ranglisten des Infobriefs behalten ihre fuenf Spalten (ohne Hinweis)
+  r <- cohort_ranking(k, top = 3)
+  expect_equal(ncol(cohort_tabelle(r$verbesserungen, mit_klasse = FALSE)), 5)
+})
+
 test_that("Kennzahlen nutzen nur die gematchte Gruppe", {
   k <- kohorte_fixture()
   stat <- cohort_statistik(k)

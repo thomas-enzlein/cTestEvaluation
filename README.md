@@ -54,9 +54,27 @@ A left-hand menu (illustrated within the app) allows users to access different f
 <img src='helpfiles/images/statistik_histogramm.PNG' width='100%'>
 <img src='helpfiles/images/statistik_entwicklung.PNG' width='100%'>
 
-The plot types `Entwicklung (5 → 6)`, `Verlauf (5 → 6)` and the Infobrief only use
-students for whom two measurements exist - the matching across the two year levels is
-done by name (spelling variants are tolerated).
+The plot types `Entwicklung (5 → 6)` and `Verlauf (5 → 6)` and the statistics of the
+Infobrief only use students for whom two measurements exist - the matching across the two
+year levels is done by name (spelling variants are tolerated). The appendix
+`Vergleich je Kind` is deliberately different: it lists every student with the values that
+exist (`62,5 → -`), so a missing year does not hide a value.
+
+## Templates and settings
+
+Parent letters and the Infobrief share one Word template. The tab `Elternbrief` opens it (and
+the folder with the editable files: `table.png` for the result table, `ergebnisse.xlsx` for the
+category texts). Editing happens on a personal copy under `Dokumente\C-Test Auswertung\vorlagen`,
+which survives an update of the app; the same buttons create it on first use.
+
+Personal entries - name, signature, exercise link, sender, class teacher, item count and the
+statistics view - are written automatically to `einstellungen.txt` next to it and applied at the
+next start, so they only have to be entered once. That file also holds the two R/F marks
+(`rf_referenz`, `rf_norm_unten`); the categories of the procedure itself are not settings.
+
+Before the parent letters or the Infobrief are rendered, the current data set is saved as a tsv
+in the output folder, so a forgotten `speichern` no longer leaves only Word files behind (the
+tsv is also the only file that carries the item count per student).
 
 ## Evaluation and Review
 
@@ -91,7 +109,7 @@ Die App wird als Setup für Windows ausgeliefert (Inno Setup; portables R, Chrom
 pandoc liegen im Setup - auf den Zielrechnern muss nichts installiert werden):
 
 ```powershell
-.\build\build_factory.ps1 -Version 1.6         # Version sonst aus app.R
+.\build\build_factory.ps1 -Version 1.7         # Version sonst aus app.R
 .\build\build_factory.ps1 -SkipRuntime         # nur Setup neu bauen
 ```
 
@@ -111,11 +129,18 @@ Setup als Artefakt ab.
 Die Testsuite liegt in `tests/` und ist nicht Teil der installierten App:
 
 ```
-install.packages(readLines("req_dev.txt"))
+install.packages(c(readLines("req.txt"), readLines("req_dev.txt")))
 Rscript tests/run_tests.R
 ```
 
-Sie deckt Rechenkern, tsv-Rundlauf, Word/Excel-Export, Elternbrief- und Infobrief-Erzeugung, App-Abläufe ohne Browser, Schreibrechte, Offline-Verhalten und die Namensauflösung (Paket-Verdeckungen) ab.
+Die Tests laden die App (`global.R`), brauchen also **alle** Pakete aus `req.txt` – `req_dev.txt`
+liefert nur `testthat` und `withr` dazu.
+
+Sie deckt Rechenkern, tsv-Rundlauf (inklusive robustem Laden mit anderen Spaltennamen, Itemzahl
+und Plausibilitätsprüfung), Word/Excel-Export, Elternbrief- und Infobrief-Erzeugung, App-Abläufe
+ohne Browser, Schreibrechte, Einstellungen, Vorlagen, Datensicherung, gesperrte Zieldateien,
+Offline-Verhalten und die Namensauflösung (Paket-Verdeckungen) ab – aktuell 159 Tests mit 867
+Erwartungen (Stand Version 1.7).
 
 ## Projektstruktur
 

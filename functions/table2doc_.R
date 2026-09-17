@@ -1,9 +1,10 @@
 setDocBackgroundColor <- function(tab, df, colors, levels) {
   
   stopifnot(length(colors) == length(levels))
+  # ohne Kategorie-Spalte gibt es nichts zu faerben (kein Abbruch)
+  kat <- if ("Kat." %in% names(df)) pull(df, "Kat.") else rep(NA_character_, nrow(df))
   for (i in seq_along(levels)) {
     lvl <- levels[i]
-    kat <- pull(df, "Kat.")
     idx <- which(kat == lvl)
     tab <- flextable::bg(x = tab, 
                          j = 7, # Kat. column

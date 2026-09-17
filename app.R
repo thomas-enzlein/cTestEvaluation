@@ -1,6 +1,6 @@
 # Version der Anwendung - einzige Quelle fuer Release und Installer.
 # build/build_factory.ps1 liest sie aus und uebergibt sie an Inno Setup.
-APP_VERSION <- "1.6"
+APP_VERSION <- "1.7"
 
 source('./ui.R')
 source('./server.R')
@@ -9,3 +9,4 @@ Sys.setlocale(category = "LC_ALL", locale = "German")
 options(encoding="UTF-8")
 
 shinyApp(ui, server)
+# 

@@ -40,9 +40,10 @@ test_that("createFilePath legt den Ausgabeordner an", {
   withr::with_tempdir({
     ausgabeordner_zuruecksetzen()
     ordner <- createFilePath(NULL, "")
-    expect_equal(ordner, file.path(getwd(), "Auswertungen"))
+    # Schreibweise des Systems: .pfad_nativ() (unter Windows Backslashes)
+    expect_equal(ordner, .pfad_nativ(file.path(getwd(), "Auswertungen")))
     expect_true(dir.exists(ordner))
-    expect_equal(createFilePath("Test", "tsv"), file.path(ordner, "Test.tsv"))
+    expect_equal(createFilePath("Test", "tsv"), .pfad_nativ(file.path(ordner, "Test.tsv")))
     ausgabeordner_zuruecksetzen()
   })
 })
@@ -55,7 +56,7 @@ test_that("ohne Schreibmoeglichkeit im Programmordner wird auf den Benutzerordne
     withr::with_options(list(ctest.outdir.fallback = fallback), {
       ausgabeordner_zuruecksetzen()
       ordner <- createFilePath(NULL, "")
-      expect_equal(ordner, file.path(fallback, "C-Test Auswertung"))
+      expect_equal(ordner, .pfad_nativ(file.path(fallback, "C-Test Auswertung")))
       expect_true(dir.exists(ordner))
       # dort laesst sich wirklich schreiben
       probe <- file.path(ordner, "probe.txt")
@@ -67,14 +68,18 @@ test_that("ohne Schreibmoeglichkeit im Programmordner wird auf den Benutzerordne
 })
 
 test_that("der Benutzerordner wird im Dokumente-Verzeichnis gesucht", {
-  expect_match(benutzer_ausgabeordner(), "C-Test Auswertung$")
+  # ohne Vorgabe (die Testumgebung setzt eine, siehe helper-app.R)
+  withr::with_options(list(ctest.outdir.fallback = NULL), {
+    expect_match(benutzer_ausgabeordner(), "C-Test Auswertung$")
+    expect_false(grepl(tempdir(), benutzer_ausgabeordner(), fixed = TRUE))
+  })
 })
 
 test_that("die Option ctest.outdir hat Vorrang", {
   withr::with_tempdir({
     ziel <- file.path(getwd(), "vorgabe")
     withr::with_options(list(ctest.outdir = ziel), {
-      expect_equal(createFilePath(NULL, ""), ziel)
+      expect_equal(createFilePath(NULL, ""), .pfad_nativ(ziel))
       expect_true(dir.exists(ziel))
     })
   })
@@ -99,7 +104,7 @@ test_that("saveData schreibt in den aufgeloesten Ausgabeordner", {
 
       msgs <- saveData(df)
 
-      expect_match(msgs, ziel, fixed = TRUE)
+      expect_match(msgs, .pfad_nativ(ziel), fixed = TRUE)
       dateien <- list.files(ziel)
       expect_true(any(grepl("\\.tsv$", dateien)))
       expect_true(any(grepl("\\.docx$", dateien)))

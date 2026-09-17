@@ -18,6 +18,13 @@ if (!exists("stopApp", envir = globalenv(), inherits = FALSE)) {
   assign("stopApp", function(...) invisible(NULL), envir = globalenv())
 }
 
+# Persoenlicher Ordner des Benutzers (Vorlagen, Einstellungen) im Test: immer im
+# Temp-Verzeichnis. Sonst wuerden Tests in die echten Dokumente schreiben - die
+# App speichert ihre Einstellungen automatisch, also schon beim Testen der
+# Oberflaeche. Tests, die das Standardverhalten pruefen, setzen die Option
+# ausdruecklich auf NULL.
+options(ctest.outdir.fallback = file.path(tempdir(), "ctest_benutzer"))
+
 # Hinweis: frueher stand hier ein Platzhalter fuer das Objekt `js` aus
 # extendShinyjs(). Seit Paket F nutzt die App shinyjs::runjs() und braucht
 # kein `js` mehr - der Platzhalter hatte genau den Fehler verdeckt, den er
@@ -43,7 +50,8 @@ leere_tabelle <- function() {
                  `R/F-Wert` = numeric(0),
                  `R/F-%` = numeric(0),
                  Kat. = character(0),
-                 Empfehlung = character(0))
+                 Empfehlung = character(0),
+                 Items = numeric(0))
 }
 
 # Eine tsv-Fixture so laden, wie es die App tut (ueber loadData())

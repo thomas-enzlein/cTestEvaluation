@@ -60,6 +60,8 @@ test_that("der Speichern-Weg legt das Vergleichsblatt und den Word-Anhang an", {
     gelesen <- openxlsx::read.xlsx(xlsx, sheet = "Vergleich")
     expect_equal(nrow(gelesen), nrow(tab))
     expect_true("Klasse" %in% colnames(gelesen))
+    # das Excel-Blatt behaelt den Hinweis
+    expect_true("Hinweis" %in% colnames(gelesen))
 
     docx <- list.files("Auswertungen", pattern = "\\.docx$", full.names = TRUE)
     expect_length(docx, 1)
@@ -69,6 +71,8 @@ test_that("der Speichern-Weg legt das Vergleichsblatt und den Word-Anhang an", {
                            encoding = "UTF-8"), collapse = "")
     expect_match(xml, "Vergleich je Kind", fixed = TRUE)
     expect_true(grepl("<w:tbl", xml))
+    # im Word-Anhang fehlt die Hinweisspalte (Platz auf der Seite)
+    expect_false(grepl("<w:t>Hinweis</w:t>", xml, fixed = TRUE))
   })
 })
 

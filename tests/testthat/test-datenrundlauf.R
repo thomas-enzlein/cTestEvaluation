@@ -80,7 +80,8 @@ test_that("alte tsv-Dateien ohne Spalte Klasse werden konvertiert", {
   df <- lade_fixture("altformat_5d.tsv")
 
   expect_equal(colnames(df),
-               c("Name", "Klasse", "WE-Wert", "WE-%", "R/F-Wert", "R/F-%", "Kat.", "Empfehlung"))
+               c("Name", "Klasse", "WE-Wert", "WE-%", "R/F-Wert", "R/F-%", "Kat.",
+                 "Empfehlung", "Items"))
   expect_equal(nrow(df), 3)
   expect_true(all(df$Klasse == ""))
   # auch im Altformat bleibt "0" (nicht teilgenommen) erhalten
@@ -96,16 +97,13 @@ test_that("zwei tsv-Dateien lassen sich nacheinander laden (Jahresvergleich)", {
   expect_setequal(unique(df$Klasse), c("5c", "6c"))
 })
 
-test_that("tsv mit fehlenden Spalten bricht heute mit Fehler ab", {
-  # Aktuelles Verhalten: read_tsv() scheitert an der Spaltenauswahl.
-  # Ein Hinweis in der Oberflaeche waere besser - Kandidat fuer Paket D.
-  expect_error(lade_fixture("falsche_spalten.tsv"))
-})
+# Hinweis: tsv-Dateien mit fehlenden Spalten werden seit Paket K geladen und
+# gemeldet statt abzubrechen (siehe test-robustheit.R).
 
 test_that("createFilePath baut die Pfade im Ausgabeordner", {
   withr::with_tempdir({
-    expect_equal(createFilePath(NULL, ""), file.path(getwd(), "Auswertungen"))
+    expect_equal(createFilePath(NULL, ""), .pfad_nativ(file.path(getwd(), "Auswertungen")))
     expect_equal(createFilePath("C-Test_Auswertung_test", "tsv"),
-                 file.path(getwd(), "Auswertungen", "C-Test_Auswertung_test.tsv"))
+                 .pfad_nativ(file.path(getwd(), "Auswertungen", "C-Test_Auswertung_test.tsv")))
   })
 })

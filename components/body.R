@@ -87,64 +87,64 @@ body <- dashboardBody(
       # Boxen in einer Zeile: sonst "schweben" sie und die Tabellenbox laeuft
       # unter den hellen Hintergrund hinaus
       fluidRow(
-      box(title = "WE-Verteilung der Schüler",
-          fluidRow(
-            createPlotOutput("histWE")
-          ),
-          fluidRow(
-            createStatsOutput("statsWE")
-          ),
-          fluidRow(
-            column(width = 6, offset = 1,
-                   fluidRow(
-                     column(width = 6,
-                            checkboxInput(inputId = "cbWEDiff", 
-                                          value = FALSE, 
-                                          label = "Differenz")),
-                     column(width = 6, 
-                            checkboxInput(inputId = "cbAllCombined", 
-                                          value = TRUE, 
-                                          label = "Gesamtübersicht")
-                            )
-                     ),
+        box(title = "WE-Verteilung der Schüler",
             fluidRow(
-              selectInput(inputId = "siPlotType", 
-                          choices = c("Histogramm",
-                                      "Dichte",
-                                      "Entwicklung",
-                                      "Verlauf"), 
-                          label = "Diagramm Typ", 
-                          selected = "Histogramm", 
-                          multiple = FALSE, width = "180px")
-            ))
-          ),
-          width = 6
-      ),
-      box(title = "R/F-Verteilung der Schüler",
-          fluidRow(
-            createPlotOutput("histRF")
-          ),
-          fluidRow(
-            createStatsOutput("statsRF"),
-            uiOutput("dynamicText")
-            
-          ),
-          width = 6
-      ),
+              createPlotOutput("histWE")
+            ),
+            fluidRow(
+              createStatsOutput("statsWE")
+            ),
+            fluidRow(
+              column(width = 6, offset = 1,
+                     fluidRow(
+                       column(width = 6,
+                              checkboxInput(inputId = "cbWEDiff", 
+                                            value = FALSE, 
+                                            label = "Differenz")),
+                       column(width = 6, 
+                              checkboxInput(inputId = "cbAllCombined", 
+                                            value = TRUE, 
+                                            label = "Gesamtübersicht")
+                       )
+                     ),
+                     fluidRow(
+                       selectInput(inputId = "siPlotType", 
+                                   choices = c("Histogramm",
+                                               "Dichte",
+                                               "Entwicklung",
+                                               "Verlauf"), 
+                                   label = "Diagramm Typ", 
+                                   selected = "Histogramm", 
+                                   multiple = FALSE, width = "180px")
+                     ))
+            ),
+            width = 6
+        ),
+        box(title = "R/F-Verteilung der Schüler",
+            fluidRow(
+              createPlotOutput("histRF")
+            ),
+            fluidRow(
+              createStatsOutput("statsRF"),
+              uiOutput("dynamicText")
+              
+            ),
+            width = 6
+        ),
       ),
       ### Vergleich je Kind (nur wenn zwei Stufen zugeordnet werden koennen)
       fluidRow(
-      box(title = "Vergleich je Kind (zwei Stufen)",
-          fluidRow(
-            column(width = 12, uiOutput("vergleichTabHinweis"))
-          ),
-          fluidRow(
-            div(dataTableOutput("tabVergleich"),
-                style = "margin-left:15px;
+        box(title = "Vergleich je Kind (zwei Stufen)",
+            fluidRow(
+              column(width = 12, uiOutput("vergleichTabHinweis"))
+            ),
+            fluidRow(
+              div(dataTableOutput("tabVergleich"),
+                  style = "margin-left:15px;
                          margin-right:15px")
-          ),
-          width = 12
-      )
+            ),
+            width = 12
+        )
       )
     ),
     ### Infobrief-Tab ####
@@ -196,27 +196,55 @@ body <- dashboardBody(
     ),
     tabItem(
       tabName = "experten",
-      column(width = 4,
-             fluidRow(
-               shiny::textInput(inputId = "lehrername", 
-                                label = "Name des Lehrers",
-                                placeholder = "Max Mustermann")  
-             ),
-             fluidRow(
-               shiny::textInput(inputId = "signatur", 
-                                label = "Signatur/Position des Lehrers (optional)",
-                                placeholder = "Abteilungsleitung I")  
-             ),
-             fluidRow(
-               shiny::textInput(inputId = "qrLink", 
-                                label = "Link zu Übungen (wird als QR-Code eingefügt, optional)",
-                                placeholder = "https://www...")  
-             ),
-             fluidRow(
-               shiny::actionButton(inputId = "btBrief", 
-                                   icon = icon("envelope"), 
-                                   label = "Elternbriefe erstellen")  
-             )
+      fluidRow(
+        column(width = 4,
+               box(
+                 title = "Elternbriefe erstellen",
+                 column(width = 12,
+                        fluidRow(
+                          shiny::textInput(inputId = "lehrername", 
+                                           label = "Name des Lehrers",
+                                           placeholder = "Max Mustermann")  
+                        ),
+                        fluidRow(
+                          shiny::textInput(inputId = "signatur", 
+                                           label = "Signatur/Position des Lehrers (optional)",
+                                           placeholder = "Abteilungsleitung I")  
+                        ),
+                        fluidRow(
+                          shiny::textInput(inputId = "qrLink", 
+                                           label = "Link zu Übungen (wird als QR-Code eingefügt, optional)",
+                                           placeholder = "https://www...")  
+                        ),
+                        fluidRow(
+                          shiny::actionButton(inputId = "btBrief", 
+                                              icon = icon("envelope"), 
+                                              label = "Elternbriefe erstellen")  
+                        )
+                 ),
+                 width = 12
+               )
+        ),
+        column(width = 8,
+               box(
+                 title = "Vorlagen und Einstellungen",
+                 fluidRow(
+                   column(width = 12, uiOutput("vorlagenHinweis"))
+                 ),
+                 fluidRow(
+                   column(width = 4,
+                          createActionButton("btVorlageOeffnen", "Briefvorlage öffnen",
+                                             icon("file-word"))),
+                   column(width = 4,
+                          createActionButton("btVorlagenOrdner", "Vorlagen-Ordner öffnen",
+                                             icon("folder-open"))),
+                   column(width = 4,
+                          createActionButton("btEinstellungen", "Einstellungen öffnen",
+                                             icon("gear")))
+                 ),
+                 width = 12
+               )
+        )
       )
     )
   )
