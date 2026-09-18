@@ -4,24 +4,11 @@
 if (!is.null(d$tabelle)) tabelle_a(d$tabelle, d$tabelle_differenz)
 ```
 
-Unterhalb des unteren Normbereichs (R/F-Wert unter `r d$referenz$grenze` %) liegen aktuell `r d$referenz$nachher_unter` von `r d$referenz$n` Kindern.`r d$referenz$zusatz`
-
-Deutliche Rückgänge (mehr als `r d$rueckgang_schwelle` %) sind farbig hervorgehoben.
+Veränderungen sind farbig hervorgehoben.
 
 ```{r, echo=FALSE}
-if (!is.null(d$rangliste_top)) block_list(
-  fpar(ftext("Die größten Verbesserungen (bis zu 5 Kinder)", fp_text(bold = TRUE)),
-       fp_p = fp_par(padding.top = 6, padding.bottom = 2)),
-  tabelle_b(d$rangliste_top)
-)
-```
-
-```{r, echo=FALSE}
-if (!is.null(d$rangliste_schwach)) block_list(
-  fpar(ftext("Die schwächste Entwicklung (bis zu 5 Kinder)", fp_text(bold = TRUE)),
-       fp_p = fp_par(padding.top = 6, padding.bottom = 2)),
-  fpar(ftext("Zuerst genannt sind Kinder, die weiterhin unter dem unteren Normbereich liegen."),
-       fp_p = fp_par(padding.bottom = 4)),
-  tabelle_b(d$rangliste_schwach)
-)
+if (!is.null(d$rangliste)) {
+  .tabellen_abstand(tabelle_b(d$rangliste, d$rangliste_unten),
+                    titel = d$rangliste_titel)
+}
 ```

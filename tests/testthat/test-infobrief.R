@@ -79,29 +79,63 @@ test_that("der Bericht liefert Kopf, Abschnitte und Anhang", {
   expect_match(abschnitt$tabelle[["R/F % (Mittel \u00b1 SD)"]][1], "^[0-9]+,[0-9] \u00b1[0-9]+,[0-9]$")
   expect_match(abschnitt$tabelle[["WE % (Mittel \u00b1 SD)"]][3], "^[+-][0-9]+,[0-9]$")
   expect_match(abschnitt$tabelle[["R/F % (Mittel \u00b1 SD)"]][3], "^[+-][0-9]+,[0-9]$")
+
+  # der Satz zum unteren Normbereich steht nicht mehr im Abschnitt, sondern
+  # ueber der Anhangstabelle (wie im Stand-Brief) - mit den Zahlen des Briefes
+  erwartet <- unter_referenz(infobrief_fixture())
+  expect_null(abschnitt$referenz)
+  expect_equal(bericht$referenz$grenze, "65")
+  expect_equal(bericht$referenz$n, erwartet$n)
+  expect_equal(bericht$referenz$unter, erwartet$nachher_unter)
+  expect_match(bericht$referenz$zusatz, "im Vorjahr zu|neu hinzugekommen|wieder erreicht")
+
+  # Fettmarkierung in der Reihenfolge der Anhangstabelle: genau die Kinder,
+  # deren aktueller R/F-Wert unter der Grenze liegt. Gelesen wird das letzte
+  # Wort der Zelle (der Wert hinter dem Pfeil), Komma als Dezimaltrenner.
+  markierung <- bericht$lese_unten
+  expect_length(markierung, nrow(bericht$lesetabelle))
+  roh <- sub("^.* ", "", bericht$lesetabelle[["R/F % (5 \u2192 6)"]])
+  werte <- suppressWarnings(as.numeric(sub(",", ".", roh, fixed = TRUE)))
+  expect_equal(sum(markierung), sum(!is.na(werte) & werte < 65))
+  expect_gt(sum(markierung), 0)
 })
 
 test_that("Top-Verbesserungen und schwaechste Entwicklung werden aufbereitet", {
   abschnitt <- infobrief_bericht(infobrief_fixture())$abschnitte[[1]]
 
-  # Top 5 (hier weniger Kinder) - absteigend nach Veraenderung, ohne Klassenspalte
-  top <- abschnitt$rangliste_top
-  expect_true(!is.null(top))
-  expect_lte(nrow(top), 5)
-  expect_true(all(diff(top[["\u0394 R/F"]]) <= 0))
-  expect_true("Testmann, Anna" %in% top$Name)
-  expect_equal(colnames(top),
+  # EINE Tabelle: ausgewaehlt werden die 3 groessten Zugaenge und die 3
+  # schwaechsten Entwicklungen; in der Tabelle stehen die Kinder unter dem
+  # Normbereich zuerst, innerhalb jeder Gruppe die groesste Veraenderung zuerst
+  rang <- abschnitt$rangliste
+  expect_true(!is.null(rang))
+  expect_equal(nrow(rang), 6)
+  expect_equal(colnames(rang),
                c("Name", "WE % (5 \u2192 6)", "\u0394 WE", "R/F % (5 \u2192 6)", "\u0394 R/F"))
   # vorher/aktuell stehen zusammen in einer Spalte
-  expect_match(top[["WE % (5 \u2192 6)"]][1], "^[0-9]+,[0-9] \u2192 [0-9]+,[0-9]$")
+  expect_match(rang[["WE % (5 \u2192 6)"]][1], "^[0-9]+,[0-9] \u2192 [0-9]+,[0-9]$")
+  expect_false("Bewertung" %in% colnames(rang))
+  expect_false("\u00c4hnlichkeit" %in% colnames(rang))
 
-  # schwaechste 5
-  schwach <- abschnitt$rangliste_schwach
-  expect_true(!is.null(schwach))
-  expect_lte(nrow(schwach), 5)
-  expect_true("Aydin, Sara" %in% schwach$Name)
-  expect_false("Bewertung" %in% colnames(schwach))
-  expect_false("Ähnlichkeit" %in% colnames(schwach))
+  # Fettmarkierung: aktueller R/F-Wert unter dem unteren Normbereich
+  mark <- abschnitt$rangliste_unten
+  expect_length(mark, nrow(rang))
+  aktuell <- suppressWarnings(as.numeric(gsub(",", ".",
+                                              sub("^.* ", "", rang[["R/F % (5 \u2192 6)"]]))))
+  expect_equal(unname(mark), !is.na(aktuell) & aktuell < 65)
+  expect_gt(sum(mark), 0)
+  # erst die Kinder unter der Grenze, dann die uebrigen: die Markierung laeuft
+  # von TRUE nach FALSE und nie zurueck
+  expect_true(all(diff(as.integer(mark)) <= 0))
+  expect_true(all(diff(as.integer(mark)) <= 0) && any(mark) && any(!mark))
+  # innerhalb jeder Gruppe: groesste Veraenderung zuerst
+  delta <- rang[["\u0394 R/F"]]
+  for (block in list(which(mark), which(!mark))) {
+    if (length(block) > 1) expect_true(all(diff(delta[block]) <= 0))
+  }
+  # der Fett-Hinweis haengt an der Ueberschrift
+  expect_match(abschnitt$rangliste_titel,
+               "Die größten Verbesserungen/schwächste Entwicklung (Fett: unter Normbereich)",
+               fixed = TRUE)
 })
 
 test_that("die schwaechsten zuerst: weiterhin unter dem Normbereich, dann Rueckgaenge", {
@@ -311,8 +345,9 @@ test_that("ein echter Infobrief entsteht als docx mit Tabellen und Farben", {
     expect_match(text, "Liebe Klassenleitung der 6c", fixed = TRUE)
     expect_match(text, "Kohorte c", fixed = TRUE)
     expect_match(text, "n (mit Werten)", fixed = TRUE)
-    expect_match(text, "Deutliche Rückgänge (mehr als 10 %) sind farbig hervorgehoben.",
-                 fixed = TRUE)
+    expect_match(text, "Veränderungen sind farbig hervorgehoben.", fixed = TRUE)
+    expect_false(grepl("Deutliche Rückgänge", text, fixed = TRUE))
+    expect_false(grepl("grün bei Verbesserung", text, fixed = TRUE))
     expect_match(text, "Testmann, Anna", fixed = TRUE)
     expect_match(text, "Aydin, Sara", fixed = TRUE)
     expect_match(text, "Mit freundlichen Grüßen", fixed = TRUE)
@@ -323,9 +358,21 @@ test_that("ein echter Infobrief entsteht als docx mit Tabellen und Farben", {
     expect_false(grepl("Die größten Verbesserungen im R/F-Wert:", text, fixed = TRUE))
     expect_false(grepl("In dieser Gruppe liegen für", text, fixed = TRUE))
     expect_false(grepl("%-Punkte", text, fixed = TRUE))
-    # Normbereich-Absatz nennt nur Zahlen, keine Namen
+    # Normbereich-Absatz nennt nur Zahlen, keine Namen - und steht ueber der
+    # Anhangstabelle, mit dem kurzen Fett-Hinweis in Klammern
     expect_match(text, "Bei 4 Kindern trifft das schon im Vorjahr zu.", fixed = TRUE)
+    expect_match(text, "Unterhalb des unteren Normbereichs (R/F-Wert unter 65 %) liegen aktuell",
+                 fixed = TRUE)
+    expect_match(text, "(Fett: unter Normbereich)", fixed = TRUE)
+    # die Ueberschrift der Rangliste traegt denselben Hinweis
+    expect_match(text, "Die größten Verbesserungen/schwächste Entwicklung (Fett: unter Normbereich)",
+                 fixed = TRUE)
     expect_false(grepl("im Vorjahr zu (", text, fixed = TRUE))
+    # der Satz steht nach dem Gruss, also auf der Anhang-Seite
+    expect_lt(regexpr("Unterhalb des unteren Normbereichs", text, fixed = TRUE)[1],
+              regexpr("Anhang: Vergleich je Kind", text, fixed = TRUE)[1])
+    expect_gt(regexpr("Unterhalb des unteren Normbereichs", text, fixed = TRUE)[1],
+              regexpr("Mit freundlichen Grüßen", text, fixed = TRUE)[1])
 
     # ein einziges Dokument: keine eingebetteten Teildokumente, keine
     # zusaetzlichen Abschnittseigenschaften (Ursache leerer Seiten).

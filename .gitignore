@@ -28,3 +28,6 @@ Auswertungen/*
 # Word-Sperrdateien (~$Infobrief_..., ~$Elternbriefe_...)
 ~$*
 template_1.docx
+# Interne Auswertung der C-Test-Daten (Skript, Cache, Ausgaben) - nicht im git
+analyse/
+Rplots.pdf

@@ -18,8 +18,10 @@ Mit freundlichen Grüßen,
 
 \newpage
 
+Unterhalb des unteren Normbereichs (R/F-Wert unter `r d$referenz$grenze` %) liegen aktuell `r d$referenz$unter` von `r d$referenz$n` Kindern.`r d$referenz$zusatz``r .abstand_hinweis(d$lese_unten)`
+
 ## Anhang: Vergleich je Kind
 
 ```{r, echo=FALSE}
-if (!is.null(d$lesetabelle)) tabelle_lese(d$lesetabelle)
+if (!is.null(d$lesetabelle)) tabelle_lese(d$lesetabelle, d$lese_unten)
 ```

@@ -31,7 +31,7 @@ Falls Sie Fragen haben oder einen Gesprächstermin wünschen, stehe ich Ihnen ge
 
 <br />
 
-Mit freundlichen Grüßen,
+Mit freundlichen Grüßen
 
 `r lehrername`
 

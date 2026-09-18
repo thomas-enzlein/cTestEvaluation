@@ -172,17 +172,34 @@ tabelle_a <- function(df, differenz = NULL) {
   }
   tabelle_infobrief(df, breiten = .breiten_a, farb_zellen = farb_zellen)
 }
-# Tabelle B: Kinderliste (Top 5 bzw. schwaechste 5), ohne Klassenspalte
-tabelle_b <- function(df) {
+# Tabelle B: Kinderliste (die groessten Verbesserungen und die schwaechste
+# Entwicklung in EINER Tabelle), ohne Klassenspalte. unter_norm markiert die
+# Kinder, deren aktueller R/F-Wert unter dem unteren Normbereich liegt: die
+# ganze Zeile steht dann fett.
+tabelle_b <- function(df, unter_norm = NULL) {
+  stile <- list()
+  if (!is.null(unter_norm)) {
+    for (i in which(as.logical(unter_norm))) {
+      stile[[length(stile) + 1]] <- list(zeile = i, fett = TRUE)
+    }
+  }
   tabelle_infobrief(df, farb_spalten = c("\u0394 WE", "\u0394 R/F"),
                     vorzeichen_spalten = c("\u0394 WE", "\u0394 R/F"),
-                    breiten = .breiten_b)
+                    breiten = .breiten_b, zell_stile = stile)
 }
-# Anhang: Vergleich je Kind (alle Kinder, mit Klassenspalte)
-tabelle_lese <- function(df) {
+# Anhang: Vergleich je Kind (alle Kinder, mit Klassenspalte).
+# unter_norm markiert die Kinder, deren AKTUELLER R/F-Wert unter dem unteren
+# Normbereich liegt: die ganze Zeile (inklusive Name) steht fett.
+tabelle_lese <- function(df, unter_norm = NULL) {
+  stile <- list()
+  if (!is.null(unter_norm)) {
+    for (i in which(as.logical(unter_norm))) {
+      stile[[length(stile) + 1]] <- list(zeile = i, fett = TRUE)
+    }
+  }
   tabelle_infobrief(df, farb_spalten = c("\u0394 WE", "\u0394 R/F"),
                     vorzeichen_spalten = c("\u0394 WE", "\u0394 R/F"),
-                    breiten = .breiten_lese)
+                    breiten = .breiten_lese, zell_stile = stile)
 }
 
 #### Tabellen des Stand-Briefs ####
@@ -229,12 +246,13 @@ tabelle_lese <- function(df) {
   do.call(block_list, teile)
 }
 
-# Hinweiszeile unter einer Tabelle: fett = unter dem unteren Normbereich.
-# Leerer Text, wenn kein Kind markiert ist (dann steht dort nichts).
-.abstand_hinweis <- function(unter, grenze) {
+# Hinweis auf die Fettmarkierung - wird an Saetze und Tabellenueberschriften
+# angehaengt (kurze Fassung, bewusst ohne Zahl: fuer die Leserschaft ist
+# "unter Normbereich" verstaendlicher als der Prozentwert).
+# Leerer Text, wenn kein Kind markiert ist.
+.abstand_hinweis <- function(unter) {
   if (!isTRUE(any(as.logical(unter)))) return("")
-  paste0("Fett gedruckt sind Kinder mit einem R/F-Wert unter dem unteren ",
-         "Normbereich (unter ", grenze, " %).")
+  " (Fett: unter Normbereich)"
 }
 
 # Kennzahlen der Klasse: ohne Klassenspalte (die Ueberschrift nennt die Klasse)
@@ -274,6 +292,16 @@ tabelle_werte <- function(df, unter_norm = NULL) {
     }
   }
   .tabellen_luft(tabelle_infobrief(df, breiten = .breiten_werte, zell_stile = stile))
+}
+
+# Markierung "aktueller R/F-Wert unter dem unteren Normbereich" in der
+# Reihenfolge der Anhangstabelle (die wird nach dem angezeigten Namen sortiert).
+vergleich_markierung <- function(cohort, grenze = .normgrenze("R/F")) {
+  if (is.null(cohort) || !inherits(cohort, "cohort")) return(NULL)
+  p <- cohort$paare
+  if (is.null(p) || nrow(p) == 0) return(NULL)
+  name <- ifelse(is.na(p$Name_Neu), p$Name_Alt, p$Name_Neu)
+  (!is.na(p$RF_Neu) & p$RF_Neu < grenze)[order(name)]
 }
 
 # Teilmenge eines Kohorten-Ergebnisses
@@ -344,18 +372,70 @@ cohort_teil <- function(x, idx) {
   list(tabelle = daten.frame, differenz = differenz)
 }
 
+# Verbesserungen und schwaechste Entwicklung in EINER Tabelle. Ausgewaehlt
+# werden die `n` groessten Zugaenge und die `n` schwaechsten Entwicklungen;
+# in der Tabelle stehen die Kinder unter dem unteren Normbereich ZUERST
+# (innerhalb jeder Gruppe die groesste Veraenderung zuerst). Markiert sind
+# genau diese Kinder (ganze Zeile fett) - dieselbe Logik wie im Stand-Brief.
+rangliste_eins <- function(cohort, n = 3, grenze = .normgrenze("R/F")) {
+  leer <- list(tabelle = NULL, unter = NULL)
+  if (is.null(cohort) || !inherits(cohort, "cohort")) return(leer)
+  g <- cohort_gematcht(cohort)
+  g <- g[!is.na(g$dRF), , drop = FALSE]
+  if (nrow(g) == 0) return(leer)
+
+  hoch <- utils::head(g[order(-g$dRF, g$Name_Neu, g$Name_Alt), , drop = FALSE], n)
+  tief <- utils::head(g[order(g$dRF, g$Name_Neu, g$Name_Alt), , drop = FALSE], n)
+  # in kleinen Gruppen koennen sich beide Listen ueberschneiden - jedes Kind
+  # steht nur einmal in der Tabelle
+  doppelt <- paste(tief$Name_Neu, tief$Name_Alt) %in% paste(hoch$Name_Neu, hoch$Name_Alt)
+  zusammen <- dplyr::bind_rows(hoch, tief[!doppelt, , drop = FALSE])
+
+  kritisch <- !is.na(zusammen$RF_Neu) & zusammen$RF_Neu < grenze
+  reihenfolge <- order(!kritisch, -zusammen$dRF, zusammen$Name_Neu)
+  zusammen <- zusammen[reihenfolge, , drop = FALSE]
+  kritisch <- kritisch[reihenfolge]
+
+  list(tabelle = cohort_tabelle(zusammen, mit_klasse = FALSE,
+                                stufe_alt = cohort$stufe_alt,
+                                stufe_neu = cohort$stufe_neu),
+       unter = kritisch)
+}
+
 # Datensatz fuer EINEN Abschnitt (einen Klassenbuchstaben)
-infobrief_abschnitt <- function(cohort, idx, buchstabe, rueckgang = 10, top = 5,
-                                schwach = 5) {
+infobrief_abschnitt <- function(cohort, idx, buchstabe, rueckgang = 10, top = 3) {
   teil <- cohort_teil(cohort, idx)
   g <- cohort_gematcht(teil)
   statistik <- cohort_statistik(teil)
-  referenz <- unter_referenz(teil)
-  rangliste <- cohort_rangliste(teil, top = top, schwach = schwach)
+  rangliste <- rangliste_eins(teil, n = top)
 
   klassen <- sort(unique(stats::na.omit(c(g$Klasse_Alt, g$Klasse_Neu))))
 
-  # Nur Zahlen nennen - die Kinder stehen in den Tabellen
+  tabelle_aufbereitet <- .infobrief_tabelle_a(statistik)
+
+  list(
+    buchstabe = buchstabe,
+    klassen_kombi = if (length(klassen) > 0) paste(klassen, collapse = " \u2192 ") else "-",
+    stufe_alt = cohort$stufe_alt,
+    stufe_neu = cohort$stufe_neu,
+    n = nrow(g),
+    rueckgang_schwelle = de_zahl(rueckgang, 0),
+    tabelle = tabelle_aufbereitet$tabelle,
+    tabelle_differenz = tabelle_aufbereitet$differenz,
+    rangliste = rangliste$tabelle,
+    # Ueberschrift der Tabelle, mit dem Fett-Hinweis wenn noetig
+    rangliste_titel = paste0("Die größten Verbesserungen/schwächste Entwicklung",
+                             .abstand_hinweis(rangliste$unter)),
+    # TRUE = Kind liegt mit dem aktuellen R/F-Wert unter dem unteren Normbereich
+    rangliste_unten = rangliste$unter
+  )
+}
+
+# Unterer Normbereich als Textbausteine. Der Satz steht im Entwicklungsbrief
+# ueber der Anhangstabelle (wie im Stand-Brief) und wird deshalb aus den Kindern
+# des ganzen Briefes gebildet. Genannt werden nur Zahlen - die Kinder stehen in
+# der Tabelle darunter.
+referenz_text <- function(referenz) {
   zusatz <- character(0)
   if (referenz$unveraendert_kritisch > 0) {
     zusatz <- c(zusatz, paste0(" Bei ", kind_dativ(referenz$unveraendert_kritisch),
@@ -381,30 +461,14 @@ infobrief_abschnitt <- function(cohort, idx, buchstabe, rueckgang = 10, top = 5,
                                if (referenz$nicht_mehr_kritisch == 1) " hat" else " haben",
                                " den Normbereich wieder erreicht."))
   }
-
-  tabelle_aufbereitet <- .infobrief_tabelle_a(statistik)
-
-  list(
-    buchstabe = buchstabe,
-    klassen_kombi = if (length(klassen) > 0) paste(klassen, collapse = " \u2192 ") else "-",
-    stufe_alt = cohort$stufe_alt,
-    stufe_neu = cohort$stufe_neu,
-    n = nrow(g),
-    rueckgang_schwelle = de_zahl(rueckgang, 0),
-    referenz = list(grenze = de_zahl(referenz$grenze, 0),
-                    n = referenz$n,
-                    nachher_unter = referenz$nachher_unter,
-                    zusatz = paste(zusatz, collapse = "")),
-    tabelle = tabelle_aufbereitet$tabelle,
-    tabelle_differenz = tabelle_aufbereitet$differenz,
-    rangliste_top = rangliste$verbesserungen,
-    rangliste_schwach = rangliste$schwach
-  )
+  list(grenze = de_zahl(referenz$grenze, 0),
+       n = referenz$n,
+       unter = referenz$nachher_unter,
+       zusatz = paste(zusatz, collapse = ""))
 }
 
 # Gesamtdaten fuer den Brief: Kopf, Abschnitte je Buchstabe, Anhang
-infobrief_bericht <- function(cohort, rueckgang = 10, top_prosa = 3,
-                              top = 5, schwach = 5) {
+infobrief_bericht <- function(cohort, rueckgang = 10, top_prosa = 3, top = 3) {
   stopifnot(inherits(cohort, "cohort"))
 
   p <- cohort$paare
@@ -421,8 +485,7 @@ infobrief_bericht <- function(cohort, rueckgang = 10, top_prosa = 3,
                        ifelse(is.na(cohort$paare$Klasse_Neu),
                               cohort$paare$Klasse_Alt,
                               cohort$paare$Klasse_Neu)) == b)
-    infobrief_abschnitt(cohort, idx, b, rueckgang = rueckgang,
-                        top = top, schwach = schwach)
+    infobrief_abschnitt(cohort, idx, b, rueckgang = rueckgang, top = top)
   })
 
   hinweise <- character(0)
@@ -468,6 +531,8 @@ infobrief_bericht <- function(cohort, rueckgang = 10, top_prosa = 3,
   }
 
   klassen_alt <- cohort$klassen_alt
+  # Zahlen des unteren Normbereichs und Fettmarkierung fuer die Anhangstabelle
+  referenz_werte <- unter_referenz(cohort)
   list(
     stufe_alt = cohort$stufe_alt,
     stufe_neu = cohort$stufe_neu,
@@ -492,6 +557,9 @@ infobrief_bericht <- function(cohort, rueckgang = 10, top_prosa = 3,
     } else "",
     abschnitte = abschnitte,
     hinweise = hinweise,
+    # Satz und Fettmarkierung ueber bzw. in der Anhangstabelle
+    referenz = referenz_text(referenz_werte),
+    lese_unten = vergleich_markierung(cohort, referenz_werte$grenze),
     # im Anhang ohne Hinweisspalte: die Seite ist zu schmal dafuer
     lesetabelle = vergleich_tabelle(cohort, mit_hinweis = FALSE)
   )
@@ -564,7 +632,7 @@ infobrief_vorbereiten <- function(quelle = file.path(getwd(), "infobrief")) {
 
 # Infobrief erstellen: Kopf + ein Abschnitt je Buchstabe + Abschluss in einem Lauf
 create_infobrief <- function(cohort, klassenleitung = "", absender = "",
-                             rueckgang = 10, top_prosa = 3, top = 5, schwach = 5,
+                             rueckgang = 10, top_prosa = 3, top = 3,
                              fortschritt = NULL) {
   # fortschritt(anteil, text) meldet den Stand an die Oberflaeche (0 bis 1)
   melde <- function(anteil, text) {
@@ -576,7 +644,7 @@ create_infobrief <- function(cohort, klassenleitung = "", absender = "",
 
   melde(0.05, "Daten werden zusammengestellt ...")
   bericht <- infobrief_bericht(cohort, rueckgang = rueckgang, top_prosa = top_prosa,
-                               top = top, schwach = schwach)
+                               top = top)
   if (bericht$n_gematcht == 0) {
     stop("Keine zugeordneten Kinder - es kann kein Infobrief erstellt werden.",
          call. = FALSE)
@@ -611,6 +679,9 @@ create_infobrief <- function(cohort, klassenleitung = "", absender = "",
   daten <- list(kopf = kopf,
                 abschnitte = bericht$abschnitte,
                 abschluss = list(hinweise = bericht$hinweise, absender = absender,
+                                 # Satz und Fettmarkierung fuer die Anhangstabelle
+                                 referenz = bericht$referenz,
+                                 lese_unten = bericht$lese_unten,
                                  lesetabelle = bericht$lesetabelle))
 
   rmd <- .infobrief_rmd_bauen(vorlage, daten, file.path(vorlage, "infobrief_gesamt.Rmd"))
@@ -755,7 +826,8 @@ stand_statistik <- function(df) {
 
 # Ein Abschnitt des Stand-Briefs (eine Klasse).
 # Rueckgabe: Liste mit allen Feldern, die infobrief/stand.Rmd braucht.
-stand_abschnitt <- function(df, klasse, grenze = .normgrenze("R/F"), top = 5) {
+stand_abschnitt <- function(df, klasse, grenze = .normgrenze("R/F"),
+                            top = 3, unten = 3) {
   klasse <- as.character(klasse)
   teil <- df[as.character(df$Klasse) == klasse, , drop = FALSE]
   kat <- as.character(teil$Kat.)
@@ -780,24 +852,33 @@ stand_abschnitt <- function(df, klasse, grenze = .normgrenze("R/F"), top = 5) {
   mit_rf <- !is.na(rf)
   unter <- mit_rf & rf < grenze
 
-  # hoechste Werte (R/F, bei Gleichstand WE); idx haelt die Zuordnung zum Kind,
-  # damit die Markierung "unter dem Normbereich" mitwandert
-  hoechste <- data.frame(Name = as.character(teil$Name)[mit_rf],
-                         WE = we[mit_rf], RF = rf[mit_rf],
-                         Kat = kat_text(kat)[mit_rf],
-                         idx = which(mit_rf),
-                         stringsAsFactors = FALSE)
-  hoechste <- hoechste[order(-hoechste$RF, -hoechste$WE, hoechste$Name), , drop = FALSE]
-  hoechste <- utils::head(hoechste, top)
-  top_tabelle <- if (nrow(hoechste) > 0) {
-    tab <- data.frame(Name = hoechste$Name, "WE %" = hoechste$WE,
-                      "R/F %" = hoechste$RF, "Kat." = hoechste$Kat,
+  # hoechste und niedrigste Werte (R/F; bei Gleichstand entscheidet WE, dann der
+  # Name). idx haelt die Zuordnung zum Kind, damit die Markierung "unter dem
+  # Normbereich" mitwandert.
+  basis <- data.frame(Name = as.character(teil$Name)[mit_rf],
+                      WE = we[mit_rf], RF = rf[mit_rf],
+                      Kat = kat_text(kat)[mit_rf],
+                      idx = which(mit_rf),
+                      stringsAsFactors = FALSE)
+  als_tabelle <- function(d) {
+    if (nrow(d) == 0) return(NULL)
+    tab <- data.frame(Name = d$Name, "WE %" = d$WE, "R/F %" = d$RF, "Kat." = d$Kat,
                       check.names = FALSE, stringsAsFactors = FALSE)
     rownames(tab) <- NULL
     tab
-  } else {
-    NULL
   }
+  hoechste <- basis[order(-basis$RF, -basis$WE, basis$Name), , drop = FALSE]
+  hoechste <- utils::head(hoechste, top)
+  niedrigste <- basis[order(basis$RF, basis$WE, basis$Name), , drop = FALSE]
+  niedrigste <- utils::head(niedrigste, unten)
+  # eine Tabelle: oben die hoechsten, darunter die niedrigsten. In kleinen
+  # Klassen koennen sich beide Listen ueberschneiden - dann steht jedes Kind
+  # nur einmal (die hoechste Nennung gewinnt).
+  doppelt <- paste(niedrigste$Name, niedrigste$RF) %in% paste(hoechste$Name, hoechste$RF)
+  zusammen <- rbind(hoechste, niedrigste[!doppelt, , drop = FALSE])
+  werte_tabelle <- als_tabelle(zusammen)
+  # TRUE = Kind liegt unter dem unteren Normbereich (steht fett in der Tabelle)
+  werte_unten <- if (nrow(zusammen) > 0) unter[zusammen$idx] else NULL
 
   anhang <- .kinder_tabelle(data.frame(Name = as.character(teil$Name), WE = we,
                                        RF = rf, Kat = kat,
@@ -815,9 +896,11 @@ stand_abschnitt <- function(df, klasse, grenze = .normgrenze("R/F"), top = 5) {
     referenz = list(grenze = de_zahl(grenze, 0),
                     n = sum(mit_rf),
                     unter = sum(unter)),
-    top = top_tabelle,
-    # TRUE = Kind liegt unter dem unteren Normbereich (steht fett in der Tabelle)
-    top_unten = if (nrow(hoechste) > 0) unter[hoechste$idx] else NULL,
+    werte = werte_tabelle,
+    # Ueberschrift der Tabelle, mit dem Fett-Hinweis wenn noetig
+    werte_titel = paste0("Die höchsten/niedrigsten Werte",
+                         .abstand_hinweis(werte_unten)),
+    werte_unten = werte_unten,
     lesetabelle = anhang$tabelle,
     lese_unten = anhang$unter
   )
@@ -826,7 +909,7 @@ stand_abschnitt <- function(df, klasse, grenze = .normgrenze("R/F"), top = 5) {
 # Alle Abschnitte des Stand-Briefs: eine je Klasse, in der Reihenfolge der
 # Klassennamen. Klassen ohne Kinder mit Werten werden uebersprungen (die
 # Oberflaeche nennt sie in der Meldung).
-stand_bericht <- function(df, grenze = .normgrenze("R/F"), top = 5) {
+stand_bericht <- function(df, grenze = .normgrenze("R/F"), top = 3, unten = 3) {
   statistik <- stand_statistik(df)
   if (nrow(statistik) == 0) {
     return(list(abschnitte = list(), klassen = character(0),
@@ -835,7 +918,7 @@ stand_bericht <- function(df, grenze = .normgrenze("R/F"), top = 5) {
   klassen <- as.character(statistik$Klasse[statistik$n_werte > 0])
   uebersprungen <- as.character(statistik$Klasse[statistik$n_werte == 0])
   list(abschnitte = lapply(klassen, function(k) stand_abschnitt(df, k, grenze = grenze,
-                                                               top = top)),
+                                                               top = top, unten = unten)),
        klassen = klassen,
        uebersprungen = uebersprungen)
 }
@@ -872,7 +955,7 @@ stand_bericht <- function(df, grenze = .normgrenze("R/F"), top = 5) {
 
 # Stand-Brief erstellen: eine docx mit einer Seite je Klasse.
 create_standbrief <- function(df, absender = "", fortschritt = NULL,
-                              grenze = .normgrenze("R/F"), top = 5) {
+                              grenze = .normgrenze("R/F"), top = 3, unten = 3) {
   melde <- function(anteil, text) {
     if (is.function(fortschritt)) {
       fortschritt(max(0, min(1, anteil)), text)
@@ -881,7 +964,7 @@ create_standbrief <- function(df, absender = "", fortschritt = NULL,
   }
 
   melde(0.05, "Daten werden zusammengestellt ...")
-  bericht <- stand_bericht(df, grenze = grenze, top = top)
+  bericht <- stand_bericht(df, grenze = grenze, top = top, unten = unten)
   if (length(bericht$abschnitte) == 0) {
     stop("Keine Kinder mit Werten - es kann kein Stand-Brief erstellt werden.",
          call. = FALSE)

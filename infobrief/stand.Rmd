@@ -17,22 +17,20 @@ if (!is.null(d$kategorien)) {
 }
 ```
 
-`r d$referenz$unter` von `r d$referenz$n` Kindern liegen mit ihrem R/F-Wert unter dem unteren Normbereich (unter `r d$referenz$grenze` %).
-
 ```{r, echo=FALSE}
-if (!is.null(d$top)) {
-  .tabellen_abstand(tabelle_werte(d$top, d$top_unten),
-                    titel = "Die höchsten Werte (bis zu 5 Kinder)")
+if (!is.null(d$werte)) {
+  .tabellen_abstand(tabelle_werte(d$werte, d$werte_unten),
+                    titel = d$werte_titel)
 }
 ```
-
-`r .abstand_hinweis(d$top_unten, d$referenz$grenze)`
 
 Mit freundlichen Grüßen,
 
 `r d$absender`
 
 \newpage
+
+`r d$referenz$unter` von `r d$referenz$n` Kindern liegen mit ihrem R/F-Wert unter dem unteren Normbereich`r .abstand_hinweis(d$lese_unten)`.
 
 ```{r, echo=FALSE}
 block_list(
@@ -45,5 +43,3 @@ block_list(
 ```{r, echo=FALSE}
 if (!is.null(d$lesetabelle)) .tabellen_abstand(tabelle_werte(d$lesetabelle, d$lese_unten))
 ```
-
-`r .abstand_hinweis(d$lese_unten, d$referenz$grenze)`

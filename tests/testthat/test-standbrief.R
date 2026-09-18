@@ -157,14 +157,23 @@ test_that("ein Abschnitt enthaelt Kennzahlen, Kategorien, Normbereich und Listen
   # keine Namensaufzaehlung im Text - markiert ist die Tabellenzeile
   expect_null(a$referenz$namens_text)
 
-  # hoechste Werte: nach R/F absteigend, ohne Kinder ohne Werte
-  expect_equal(nrow(a$top), 5)
-  expect_equal(a$top$Name[1], "Zimmer")
-  expect_equal(a$top$Name[2], "Ahrend")
-  expect_false("Voss" %in% a$top$Name)
+  # eine Tabelle: oben die besten 3 (nach R/F absteigend), darunter die
+  # schwaechsten 3 (aufsteigend) - ohne Kinder ohne Werte. Hier hat die Klasse
+  # nur 5 Kinder mit Werten, deshalb steht "Meyer" (in beiden Listen) einmal.
+  expect_equal(nrow(a$werte), 5)
+  expect_equal(a$werte$Name, c("Zimmer", "Ahrend", "Meyer", "Bode", "Kraus"))
+  expect_equal(length(unique(a$werte$Name)), nrow(a$werte))
+  expect_false("Voss" %in% a$werte$Name)
+  # Markierung "unter dem unteren Normbereich" (Grenze 65) und die Ueberschrift
+  # mit dem Fett-Hinweis, weil Kinder darunter liegen
+  expect_equal(a$werte_unten, c(FALSE, FALSE, TRUE, TRUE, TRUE))
+  expect_equal(a$werte_titel, "Die höchsten/niedrigsten Werte (Fett: unter Normbereich)")
 
-  # Markierung "unter dem unteren Normbereich" (Grenze 65)
-  expect_equal(a$top_unten, c(FALSE, FALSE, TRUE, TRUE, TRUE))
+  # liegt niemand unter der Grenze, steht der Hinweis nicht in der Ueberschrift
+  alle_gut <- stand_df(Name = c("A", "B"), Klasse = "5a", rf = c(90, 80), we = c(95, 85))
+  expect_equal(stand_abschnitt(alle_gut, "5a")$werte_titel,
+               "Die höchsten/niedrigsten Werte")
+
   erwartet_unten <- (!is.na(df[["R/F-%"]]) & df[["R/F-%"]] < 65)[order(df$Name)]
   expect_equal(a$lese_unten, erwartet_unten)
 
@@ -174,10 +183,18 @@ test_that("ein Abschnitt enthaelt Kennzahlen, Kategorien, Normbereich und Listen
   expect_equal(a$lesetabelle[["Kat."]][a$lesetabelle$Name == "Voss"], "-")
   expect_true(is.na(a$lesetabelle[["R/F %"]][a$lesetabelle$Name == "Voss"]))
 
-  # ohne Werte gibt es keine Liste der hoechsten Werte
+  # kleine Klassen: kein Kind steht zweimal in der Tabelle
+  klein <- stand_df(Name = c("A", "B", "C", "D"), Klasse = "5a",
+                    rf = c(80, 70, 40, 30), we = c(80, 70, 40, 30))
+  k <- stand_abschnitt(klein, "5a")
+  expect_equal(nrow(k$werte), 4)
+  expect_equal(sort(k$werte$Name), c("A", "B", "C", "D"))
+  expect_equal(length(unique(k$werte$Name)), nrow(k$werte))
+
+  # ohne Werte gibt es keine Wertetabelle
   ohne <- stand_df(Name = "E", Klasse = "5a", rf = NA, we = NA)
-  expect_null(stand_abschnitt(ohne, "5a")$top)
-  expect_null(stand_abschnitt(ohne, "5a")$top_unten)
+  expect_null(stand_abschnitt(ohne, "5a")$werte)
+  expect_null(stand_abschnitt(ohne, "5a")$werte_unten)
 })
 
 test_that("Kategorien werden wie in App, Excel und Word farbig hinterlegt", {
@@ -307,7 +324,11 @@ test_that("der Stand-Brief entsteht als EINE docx mit einer Seite je Klasse", {
     expect_false(grepl("Betroffen sind", text, fixed = TRUE))
     expect_match(text, "liegen mit ihrem R/F-Wert unter dem unteren Normbereich",
                  fixed = TRUE)
-    expect_match(text, "Die höchsten Werte", fixed = TRUE)
+    # Ueberschrift der Wertetabelle mit dem Fett-Hinweis (beide Klassen haben
+    # Kinder unter der Grenze, deshalb steht er dort)
+    expect_match(text, "Die höchsten/niedrigsten Werte (Fett: unter Normbereich)",
+                 fixed = TRUE)
+    expect_false(grepl("bis zu 3 Kinder", text, fixed = TRUE))
     # Anhang je Klasse mit Einzelwerten, aber ohne Vergleichsspalten
     expect_match(text, "Anhang: Übersicht aller Kinder der Klasse 5c", fixed = TRUE)
     expect_match(text, "Anhang: Übersicht aller Kinder der Klasse 6c", fixed = TRUE)
@@ -319,8 +340,10 @@ test_that("der Stand-Brief entsteht als EINE docx mit einer Seite je Klasse", {
     for (farbe in c("006400", "90EE90", "FFA500", "CD8500", "FF4500", "FF0000")) {
       expect_match(xml, paste0('w:fill="', farbe, '"'), fixed = TRUE)
     }
-    # Kinder unter dem unteren Normbereich sind fett und werden erklaert
-    expect_match(text, "Fett gedruckt sind Kinder", fixed = TRUE)
+    # Kinder unter dem unteren Normbereich sind fett; der Satz ueber der
+    # Anhangstabelle traegt den kurzen Hinweis (bewusst ohne Prozentzahl)
+    expect_match(text, "unter dem unteren Normbereich (Fett: unter Normbereich).",
+                 fixed = TRUE)
     expect_match(xml, '<w:b w:val="true"/>', fixed = TRUE)
     # Tabellen haben Luft: hoehere Zeilen und Vor-/Nachlauf
     expect_false(grepl('w:trHeight w:val="360"', xml, fixed = TRUE))
