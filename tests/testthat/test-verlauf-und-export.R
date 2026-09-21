@@ -88,3 +88,42 @@ test_that("ohne Vergleich bleibt der Export unveraendert", {
     expect_false("Vergleich" %in% openxlsx::getSheetNames(xlsx))
   })
 })
+
+test_that("Word und Excel sind erst nach Klasse, dann nach Namen sortiert", {
+  withr::with_tempdir({
+    file.copy(file.path(projekt_root, "template.docx"), "template.docx")
+    dir.create("Auswertungen")
+
+    # absichtlich unsortiert eingegeben (zwei Klassen)
+    df <- leere_tabelle()
+    df <- addEntry(df, name = "Zimmer, Zoe",  klasse = "5c", rf = 28, we = 34, numItems = 40)
+    df <- addEntry(df, name = "Aydin, Sara",  klasse = "6c", rf = 22, we = 28, numItems = 40)
+    df <- addEntry(df, name = "Beispiel, Ben", klasse = "5c", rf = 17, we = 20, numItems = 40)
+
+    erwartet_namen <- c("Beispiel, Ben", "Zimmer, Zoe", "Aydin, Sara")
+
+    saveData(df)
+
+    # Excel
+    xlsx <- list.files("Auswertungen", pattern = "\\.xlsx$", full.names = TRUE)
+    gelesen <- openxlsx::read.xlsx(xlsx, sheet = "C-Test")
+    expect_equal(as.character(gelesen$Name), erwartet_namen)
+    expect_equal(as.character(gelesen$Klasse), c("5c", "5c", "6c"))
+
+    # Word: Reihenfolge der Namen im Dokument (Position im XML vergleichen)
+    docx <- list.files("Auswertungen", pattern = "\\.docx$", full.names = TRUE)
+    z <- tempfile("d"); dir.create(z)
+    utils::unzip(docx, exdir = z)
+    xml <- paste(readLines(file.path(z, "word", "document.xml"), warn = FALSE,
+                           encoding = "UTF-8"), collapse = "")
+    positionen <- vapply(erwartet_namen, function(n) regexpr(n, xml, fixed = TRUE)[1],
+                         numeric(1))
+    expect_true(all(positionen > 0))          # alle Namen stehen im Dokument
+    expect_true(all(diff(positionen) > 0))    # und zwar in dieser Reihenfolge
+
+    # tsv behaelt die Eingabereihenfolge
+    tsv <- list.files("Auswertungen", pattern = "\\.tsv$", full.names = TRUE)
+    roh <- readr::read_tsv(tsv, show_col_types = FALSE)
+    expect_equal(as.character(roh$Name), as.character(df$Name))
+  })
+})

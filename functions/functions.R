@@ -719,6 +719,18 @@ saveData <- function(df, vergleich = NULL) {
   # waere doppelt
   merke_gesicherten_stand(df)
   bericht <- df[, setdiff(colnames(df), .items_spalte), drop = FALSE]
+  # Reihenfolge fuer Word und Excel: erst Klasse, dann Name alphabetisch
+  # (die tsv behaelt die Eingabereihenfolge - sie ist das Datenformat).
+  # order() folgt der Locale; app.R setzt "German", damit Umlaute richtig
+  # einsortiert werden.
+  if ("Name" %in% colnames(bericht)) {
+    schluessel <- list(as.character(bericht$Name))
+    if ("Klasse" %in% colnames(bericht)) {
+      schluessel <- c(list(as.character(bericht$Klasse)), schluessel)
+    }
+    bericht <- bericht[do.call(order, schluessel), , drop = FALSE]
+    rownames(bericht) <- NULL
+  }
   table2doc_(bericht, 
              file = createFilePath(fn, ""), 
              digits = 1, 
