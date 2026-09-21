@@ -3,6 +3,12 @@
 Der Abschnitt der Version, die als Tag veröffentlicht wird, wird als Beschreibung des
 GitHub-Releases verwendet.
 
+## 1.9
+
+**Sortierung in Word und Excel.** Die beim Speichern erzeugten Dateien sind jetzt erst nach Klasse,
+dann nach Namen sortiert. Die tsv behält die Eingabereihenfolge, das Vergleichsblatt war schon
+alphabetisch.
+
 ## 1.8
 
 **Stand-Brief je Klasse.** Im Tab `Infobrief` gibt es jetzt die Briefart-Wahl: `Stand je Klasse`
