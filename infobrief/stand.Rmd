@@ -24,9 +24,12 @@ if (!is.null(d$werte)) {
 }
 ```
 
-Mit freundlichen Grüßen,
-
-`r d$absender`
+```{r, echo=FALSE, results='asis'}
+# Grussformel nur mit Namen (siehe abschluss.Rmd)
+if (!is.null(d$absender) && nzchar(trimws(d$absender))) {
+  cat("Mit freundlichen Grüßen,\n\n", trimws(d$absender), "\n", sep = "")
+}
+```
 
 \newpage
 

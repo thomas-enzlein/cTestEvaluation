@@ -95,7 +95,7 @@ test_that("addEntry rechnet Prozentwerte, Kategorie und Empfehlung", {
 })
 
 test_that("convert_kat_meaning liefert je Kategorie genau einen Text", {
-  # liest elternbrief/ergebnisse.xlsx, also relativ zum Projektordner
+  # liest vorlagen/ergebnisse.xlsx, also relativ zum Projektordner
   withr::with_dir(projekt_root, {
     for (kat in lvls) {
       txt <- convert_kat_meaning(kat)

@@ -58,6 +58,10 @@ test_that("der Infobrief prueft die Zieldatei vor dem Rendern", {
     dir.create("infobrief")
     dateien <- list.files(file.path(projekt_root, "infobrief"), full.names = TRUE)
     file.copy(dateien, "infobrief", recursive = TRUE)
+    # zentraler Vorlagenordner (Word-Vorlage) neben dem Briefordner
+    dir.create("vorlagen")
+    file.copy(list.files(file.path(projekt_root, "vorlagen"), full.names = TRUE),
+              "vorlagen", recursive = TRUE)
     dir.create("Auswertungen")
     withr::local_options(ctest.outdir.fallback = file.path(getwd(), "benutzer"))
 
@@ -84,6 +88,10 @@ test_that("die Elternbriefe pruefen die Zieldatei vor dem Rendern", {
     dir.create("elternbrief")
     dateien <- list.files(file.path(projekt_root, "elternbrief"), full.names = TRUE)
     file.copy(dateien, "elternbrief", recursive = TRUE)
+    # zentraler Vorlagenordner (Word-Vorlage, Kategorie-Texte) neben dem Briefordner
+    dir.create("vorlagen")
+    file.copy(list.files(file.path(projekt_root, "vorlagen"), full.names = TRUE),
+              "vorlagen", recursive = TRUE)
     dir.create("Auswertungen")
     withr::local_options(ctest.outdir.fallback = file.path(getwd(), "benutzer"))
 

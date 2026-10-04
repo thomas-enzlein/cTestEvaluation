@@ -268,6 +268,10 @@ test_that("der Stand-Brief entsteht als EINE docx mit einer Seite je Klasse", {
     dir.create("infobrief")
     dateien <- list.files(file.path(projekt_root, "infobrief"), full.names = TRUE)
     file.copy(dateien, "infobrief", recursive = TRUE)
+    # zentraler Vorlagenordner (Word-Vorlage) neben dem Briefordner
+    dir.create("vorlagen")
+    file.copy(list.files(file.path(projekt_root, "vorlagen"), full.names = TRUE),
+              "vorlagen", recursive = TRUE)
     withr::local_options(ctest.outdir.fallback = file.path(getwd(), "benutzer"))
 
     df <- dplyr::bind_rows(lade_fixture("klasse_5c.tsv"), lade_fixture("klasse_6c.tsv"))
@@ -350,6 +354,17 @@ test_that("der Stand-Brief entsteht als EINE docx mit einer Seite je Klasse", {
     expect_match(xml, 'w:trHeight w:val="4[0-9][0-9]"')
     expect_match(xml, "w:before=", fixed = TRUE)
     expect_match(xml, "w:after=", fixed = TRUE)
+
+    # ohne Absender entfaellt die Grussformel (der Brief geht ans Kollegium)
+    expect_match(text, "Mit freundlichen Grüßen", fixed = TRUE)
+    ohne <- NULL
+    utils::capture.output(
+      suppressMessages(ohne <- create_standbrief(df, absender = ""))
+    )
+    text_ohne <- stand_docx_text(ohne$datei)
+    expect_false(grepl("Mit freundlichen Grüßen", text_ohne, fixed = TRUE))
+    expect_match(text_ohne, "Lernstand im Fach Deutsch", fixed = TRUE)
+    expect_match(text_ohne, "Anhang: Übersicht aller Kinder der Klasse 6c", fixed = TRUE)
   })
 })
 
@@ -380,6 +395,10 @@ test_that("auch der Stand-Brief prueft die Zieldatei vor dem Rendern", {
     dir.create("infobrief")
     dateien <- list.files(file.path(projekt_root, "infobrief"), full.names = TRUE)
     file.copy(dateien, "infobrief", recursive = TRUE)
+    # zentraler Vorlagenordner (Word-Vorlage) neben dem Briefordner
+    dir.create("vorlagen")
+    file.copy(list.files(file.path(projekt_root, "vorlagen"), full.names = TRUE),
+              "vorlagen", recursive = TRUE)
     dir.create("Auswertungen")
     withr::local_options(ctest.outdir.fallback = file.path(getwd(), "benutzer"))
 

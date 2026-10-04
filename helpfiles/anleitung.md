@@ -48,7 +48,7 @@ Unter dem Laden-Button stehen `Vergleich von Stufe` und `bis Stufe`: hier wird f
 1.  **Auswertung**: Hier können die **Schülerdaten eingegeben**, die Ergebnisse als **Tabelle betrachtet** und **gespeichert** werden.
 2.  **Statistik**: Hier können Verteilungen und Kennzahlen (Mittelwert ± Standardabweichung, Median) betrachtet sowie die **Entwicklung zweier Jahrgänge** dargestellt werden.
 3.  **Infobrief**: Hier wird entweder der **Stand-Brief je Klasse** oder – mit Prüfung der **Zuordnung der Kinder zum Vorjahr** – der **Entwicklungsbrief für das Kollegium** erstellt (siehe unten).
-4.  **Elternbrief**: Hier können automatisiert Elternbriefe erstellt werden.
+4.  **Elternbrief**: Hier können automatisiert Elternbriefe erstellt werden – für eine einzelne Klasse, einen ganzen Jahrgang oder alle geladenen Klassen (voreingestellt ist die höchste geladene Klasse, bei 5a und 6a also 6a). Alle Briefe einer Auswahl stehen in **einer** Word-Datei, sortiert nach Klasse und Name.
 5.  **Anleitung**: Diese Anleitung.
 
 <br>
@@ -122,12 +122,22 @@ Der Tab `Infobrief` kennt zwei Briefarten – oben im Abschnitt „Art des Brief
 
 Beide nutzen dieselbe Word-Vorlage und denselben `Absender`. Die **Anrede schreibt die App selbst** („Liebe Klassenleitung der 5c," bzw. „Liebe Klassenleitungen der 6b und 6c,"); ein Feld für die Klassenleitung gibt es nicht mehr. Der Tab ist für das Kollegium gedacht (nicht für die Eltern).
 
+Das Feld unter der Briefart heißt je nach Wahl anders und bietet auch andere Werte an:
+
+-   **`Stand je Klasse`** → `Klassen für den Brief`: `Alle geladenen Klassen`, die Jahrgänge und die einzelnen Klassen – wie im Tab `Elternbrief`. Vorausgewählt ist die höchste geladene Klasse.
+-   **`Entwicklung (zwei Jahrgänge)`** → `Kohorten für den Brief`: `Alle Kohorten` und je Buchstabe das Paar aus der Stufenauswahl (z. B. `c: 5c → 6c`). Eine einzelne Klasse gibt es dort nicht, weil 5c und 6c zusammengehören; fehlt ein Jahr, steht `c (nur 5c)`. Vorausgewählt ist die Kohorte der höchsten geladenen Klasse.
+
+Alle Zahlen im Brief (Kennzahlen, Normbereich-Absatz, Anhang) beziehen sich auf die Auswahl.
+
+Der `Absender` ist optional: bleibt das Feld leer, endet der Brief ohne Grußformel.
+
 #### Stand-Brief je Klasse
 
 Für die Rückmeldung an eine Klasse – nach dem Ersttest in der 5 genauso wie nach dem Re-Test in der 6. Es wird **keine** zweite Stufe gebraucht, es gibt keine Zuordnung und keinen Vorjahresvergleich.
 
 1.  **Briefart wählen**: `Stand je Klasse` (steht schon so).
-2.  **`Infobrief erstellen`**: Es entsteht **eine** Word-Datei `Infobrief_Stand_<Klassen>.docx` (z. B. `Infobrief_Stand_5a_5b.docx`) mit **einer Seite je geladener Klasse**. Klassen ohne Werte werden übersprungen und in der Meldung genannt.
+2.  **Klassen wählen**: `Klassen für den Brief` – eine Klasse, ein Jahrgang oder alle (Voreinstellung: die höchste geladene Klasse). Mit `Alle geladenen Klassen` entsteht wie bisher eine Datei mit allen Klassen.
+3.  **`Infobrief erstellen`**: Es entsteht **eine** Word-Datei `Infobrief_Stand_<Klassen>.docx` (z. B. `Infobrief_Stand_5a_5b.docx`) mit **einer Seite je gewählter Klasse**. Klassen ohne Werte werden übersprungen und in der Meldung genannt.
 
 Inhalt je Klasse:
 
@@ -158,7 +168,7 @@ Der Entwicklungsbrief fasst die **Entwicklung einer Klasse über zwei Jahrgänge
 
 ![](images/infobrief_zuordnung.PNG){width="1000"}
 
-4.  **Brief erstellen**: optional `Absender` eintragen, dann `Infobrief erstellen`. Es entsteht eine Word-Datei je Stufenpaar (z. B. `Infobrief_5-6_5c_6c.docx`) im Auswertungsordner; die Anrede bildet die App aus den Klassen des Briefes.
+4.  **Brief erstellen**: optional `Absender` eintragen, dann `Infobrief erstellen`. Es entsteht eine Word-Datei je Stufenpaar (z. B. `Infobrief_5-6_5c_6c.docx`) im Auswertungsordner; die Anrede bildet die App aus den Klassen des Briefes. Mit `Kohorten für den Brief` lässt sich der Brief auf eine Kohorte einschränken (z. B. `c: 5c → 6c` – dann steht nur der Abschnitt der 5c/6c darin).
 
 ![](images/infobrief_brief.PNG){width="600"}
 
@@ -195,8 +205,10 @@ Diese Punkte stehen unter `Hinweise`. Die Kinder werden dort mit Namen genannt, 
 Elternbrief und Infobrief nutzen **dieselbe** Word-Vorlage. Im Tab `Elternbrief` liegt dafür der Abschnitt `Vorlagen und Einstellungen`:
 
 -   `Briefvorlage öffnen`: legt beim ersten Klick eine persönliche Kopie der Vorlage unter `Dokumente\C-Test Auswertung\vorlagen` an und öffnet sie in Word. Angepasst werden hier **Briefkopf und Logo** (Kopf- und Fußzeile), Schriftarten, Absatzformate und Seitenränder. Die Änderung gilt für alle künftigen Elternbriefe **und** für den Infobrief. Der Wortlaut der Briefe steht nicht in der Vorlage – der gehört zur App und ändert sich mit ihr.
--   `Vorlagen-Ordner öffnen`: öffnet den Ordner mit allen anpassbaren Dateien. Neben der Vorlage (`template.docx`) liegen dort die Ergebnistabelle des Briefes (`table.png`) und die Texte zu den Kategorien (`ergebnisse.xlsx`). Auch diese beiden werden übernommen, sobald sie dort geändert vorliegen; eine unlesbare `ergebnisse.xlsx` wird ignoriert, dann gilt weiter die mitgelieferte Tabelle.
+-   `Vorlagen-Ordner öffnen`: öffnet den Ordner mit allen anpassbaren Dateien. Neben der Vorlage (`template.docx`) liegen dort die Texte zu den Kategorien (`ergebnisse.xlsx`) – daraus entsteht die Ergebnistabelle des Elternbriefes, eine echte Word-Tabelle. Vorlage dafür ist das Blatt **`Tabelle2`**: Zeilen, Überschriften und **verbundene Zellen** werden übernommen. Fehlt das Blatt (ältere persönliche Kopien), wird dieselbe Tabelle aus dem ersten Blatt abgeleitet. Das erste Blatt (`Tabelle1`) bleibt die Zuordnungstabelle – sie liefert den Satz zum einzelnen Kind (`C3: Ihr Kind hat …`) und braucht die Spalte `Kategorie`. Eine unlesbare Datei wird ignoriert, dann gilt weiter die mitgelieferte Tabelle.
 -   `Einstellungen öffnen`: öffnet `Dokumente\C-Test Auswertung\einstellungen.txt`. Darin stehen Ihre Eingaben aus der App – `Name des Lehrers`, `Signatur`, `Link zu Übungen`, `Absender`, `Anzahl der Test-Items` und die Ansicht im Tab Statistik (Differenz, Gesamtübersicht, Diagrammtyp). Sie werden **automatisch gespeichert**, sobald Sie etwas ändern, und beim nächsten Start wieder in die Felder eingesetzt. Sie müssen sie also nur einmal eintragen.
+
+Unter den Knöpfen steht, **welche** Vorlage gerade gilt: die persönliche Kopie mit Pfad und Änderungsdatum oder – solange keine persönliche Kopie existiert – die mitgelieferte Vorlage.
 
 Die Anpassungen liegen bewusst **nicht** im Programmordner: dort würde ein Update der App sie überschreiben. Wird eine Datei im persönlichen Ordner gelöscht, gilt wieder das mitgelieferte Original (der Knopf legt es auf Wunsch erneut an).
 

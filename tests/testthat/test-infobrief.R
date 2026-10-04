@@ -282,6 +282,10 @@ test_that("ein echter Infobrief entsteht als docx mit Tabellen und Farben", {
     dir.create("infobrief")
     dateien <- list.files(file.path(projekt_root, "infobrief"), full.names = TRUE)
     file.copy(dateien, "infobrief", recursive = TRUE)
+    # zentraler Vorlagenordner (Word-Vorlage) neben dem Briefordner
+    dir.create("vorlagen")
+    file.copy(list.files(file.path(projekt_root, "vorlagen"), full.names = TRUE),
+              "vorlagen", recursive = TRUE)
     # Persoenlicher Vorlagenordner: sonst wuerde eine vom Benutzer angepasste
     # Vorlage unter "Dokumente" die Testergebnisse veraendern
     withr::local_options(ctest.outdir.fallback = file.path(getwd(), "benutzer"))
@@ -404,6 +408,18 @@ test_that("ein echter Infobrief entsteht als docx mit Tabellen und Farben", {
     # im Programmverzeichnis bleibt nichts liegen
     expect_false(file.exists("infobrief/infobrief.knit.md"))
     expect_false(dir.exists(file.path(tempdir(), paste0("infobrief_", Sys.getpid()))))
+
+    # ohne Absender entfaellt die Grussformel - der Brief bleibt vollstaendig
+    ohne <- NULL
+    utils::capture.output(
+      suppressMessages(ohne <- create_infobrief(k, absender = ""))
+    )
+    text_ohne <- teile_auslesen(ohne$datei)$text
+    expect_false(grepl("Mit freundlichen Grüßen", text_ohne, fixed = TRUE))
+    expect_match(text_ohne, "Die größten Verbesserungen", fixed = TRUE)
+    expect_match(text_ohne, "Anhang: Vergleich je Kind", fixed = TRUE)
+    # auch der Platzhalter aus der Vorlage steht nicht mehr im Dokument
+    expect_false(grepl("d$absender", text_ohne, fixed = TRUE))
   })
 })
 

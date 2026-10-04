@@ -3,10 +3,14 @@
 
 brief_test_umgebung <- function(code) {
   withr::with_tempdir({
-    # Inhalt von elternbrief/ kopieren (ohne file.copy-Warnung)
+    # Inhalt von elternbrief/ kopieren (ohne file.copy-Warnung). Die Word-Vorlage
+    # und die Kategorie-Texte kommen aus dem zentralen Ordner "vorlagen".
     dir.create("elternbrief")
     dateien <- list.files(file.path(projekt_root, "elternbrief"), full.names = TRUE)
     file.copy(dateien, "elternbrief", recursive = TRUE)
+    dir.create("vorlagen")
+    file.copy(list.files(file.path(projekt_root, "vorlagen"), full.names = TRUE),
+              "vorlagen", recursive = TRUE)
     dir.create("Auswertungen")
     # Persoenlicher Vorlagenordner: sonst wuerde eine vom Benutzer angepasste
     # Vorlage unter "Dokumente" die Testergebnisse veraendern
@@ -142,20 +146,22 @@ test_that("fuer mehrere Kinder entsteht eine Datei mit einem Brief je Kind", {
     dateien <- erwartete_datei()
     expect_length(dateien, 1)
 
-    # erster Brief steht direkt im Dokument
+    # Die Briefe stehen nach Klasse und Name sortiert in der Datei: in der 5c
+    # kommt "Beispiel, Ben" vor "Testmann, Anna", der erste Brief steht direkt
+    # im Dokument.
     text <- brief_text(dateien)
-    expect_match(text, "Testmann, Anna", fixed = TRUE)
-    expect_match(text, "B2: ", fixed = TRUE)
+    expect_match(text, "Beispiel, Ben", fixed = TRUE)
+    expect_match(text, "C4: ", fixed = TRUE)
     expect_match(text, "Abteilungsleitung I", fixed = TRUE)
     expect_equal(anzahl_anreden(text), 1)
 
-    # zweiter Brief ist als eingebettetes Dokument angehaengt
+    # der zweite Brief ist als eingebettetes Dokument angehaengt
     expect_equal(anzahl_altchunks(dateien), 1)
     eingebettet <- eingebettete_dokumente(dateien)
     expect_length(eingebettet, 1)
     text2 <- brief_text(eingebettet)
-    expect_match(text2, "Beispiel, Ben", fixed = TRUE)
-    expect_match(text2, "C4: ", fixed = TRUE)
+    expect_match(text2, "Testmann, Anna", fixed = TRUE)
+    expect_match(text2, "B2: ", fixed = TRUE)
     expect_match(text2, "Abteilungsleitung I", fixed = TRUE)
 
     # Paket B: das Programmverzeichnis bleibt unberuehrt (kein knit.md usw.)
@@ -179,8 +185,12 @@ test_that("elternbrief_vorbereiten kopiert die Vorlagen in ein Temp-Verzeichnis"
   on.exit(unlink(vorlage, recursive = TRUE), add = TRUE)
 
   expect_true(dir.exists(vorlage))
-  expect_setequal(list.files(vorlage), list.files(file.path(projekt_root, "elternbrief")))
-  for (datei in c("elternbrief.Rmd", "ergebnisse.xlsx", "table.png", "_output.yml")) {
+  # die Arbeitskopie enthaelt die Dateien des Briefes UND die zentral
+  # mitgelieferten (Word-Vorlage, Kategorie-Texte)
+  erwartet <- c(list.files(file.path(projekt_root, "elternbrief")),
+                "template.docx", "ergebnisse.xlsx")
+  expect_setequal(list.files(vorlage), erwartet)
+  for (datei in c("elternbrief.Rmd", "ergebnisse.xlsx", "_output.yml", "template.docx")) {
     expect_true(file.exists(file.path(vorlage, datei)))
   }
   # Arbeitskopie liegt im Temp-Verzeichnis und damit ausserhalb des
@@ -318,6 +328,154 @@ test_that("die Brief-Erzeugung meldet ihren Fortschritt", {
     expect_match(alle, "Brief 1 von 4", fixed = TRUE)
     expect_match(alle, "Brief 4 von 4", fixed = TRUE)
     expect_match(alle, "Testmann, Anna", fixed = TRUE)
+  })
+})
+
+# XML eines Dokumentteils aus dem docx lesen (ohne das Paket zu entpacken)
+docx_teil <- function(datei, teil) {
+  con <- unz(datei, teil)
+  on.exit(close(con), add = TRUE)
+  paste(readLines(con, warn = FALSE), collapse = "")
+}
+
+zaehle <- function(xml, muster) {
+  treffer <- gregexpr(muster, xml, fixed = TRUE)[[1]]
+  if (treffer[1] == -1) 0L else length(treffer)
+}
+
+# wie zaehle(), aber als regulaerer Ausdruck (z. B. "<w:tr[ >]" - sonst zaehlt
+# "<w:trPr>" mit)
+zaehle_regex <- function(xml, muster) {
+  treffer <- gregexpr(muster, xml)[[1]]
+  if (treffer[1] == -1) 0L else length(treffer)
+}
+
+# Groessen aller Bilder im Hauptdokument (EMU), z. B. fuer den QR-Code
+bild_groessen <- function(datei) {
+  xml <- docx_teil(datei, "word/document.xml")
+  treffer <- regmatches(xml, gregexpr('<wp:extent cx="[0-9]+" cy="[0-9]+"', xml))[[1]]
+  if (length(treffer) == 0) return(data.frame(cx = numeric(0), cy = numeric(0)))
+  zahlen <- regmatches(treffer, gregexpr("[0-9]+", treffer))
+  data.frame(cx = as.numeric(vapply(zahlen, `[`, character(1), 1)),
+             cy = as.numeric(vapply(zahlen, `[`, character(1), 2)))
+}
+
+# Eingebettete Briefe in der Reihenfolge, in der sie im Dokument stehen.
+# officer::body_add_docx() haengt sie als altChunk an; die Reihenfolge der
+# Dateien im Paket ist nicht die Reihenfolge im Dokument, deshalb wird ueber die
+# Beziehungs-Ids (document.xml -> .rels -> file*.docx) aufgeloest.
+eingebettete_der_reihe_nach <- function(datei) {
+  xml <- docx_teil(datei, "word/document.xml")
+  rels <- docx_teil(datei, "word/_rels/document.xml.rels")
+  ids <- regmatches(xml, gregexpr('<w:altChunk r:id="[^"]+"', xml))[[1]]
+  if (length(ids) == 0) return(character(0))
+  ids <- sub('^.*r:id="', "", sub('"$', "", ids))
+  ziele <- vapply(ids, function(id) {
+    treffer <- regmatches(rels, regexpr(paste0('Id="', id, '"[^>]*Target="[^"]+"'), rels))
+    basename(sub('"$', "", sub('^.*Target="', "", treffer)))
+  }, character(1))
+  alle <- eingebettete_dokumente(datei)
+  alle[match(ziele, basename(alle))]
+}
+
+test_that("die Ergebnistabelle ist eine echte Word-Tabelle", {
+  skip_if_not(rmarkdown::pandoc_available(), "pandoc nicht gefunden")
+
+  brief_test_umgebung({
+    df <- lade_fixture("klasse_5c.tsv")[1, ]
+    erzeuge_briefe(df, lehrername = "Test, Tina")
+
+    dateien <- erwartete_datei()
+    expect_length(dateien, 1)
+    xml <- docx_teil(dateien, "word/document.xml")
+
+    # Tabelle im Dokument, kein Bild im Textkoerper (ohne Link gibt es keins)
+    expect_gte(zaehle(xml, "<w:tbl"), 1)
+    expect_equal(zaehle(xml, "<w:drawing"), 0)
+
+    # Zellentrenner: jede Zelle hat einen Rahmen, waagerecht und senkrecht
+    expect_gte(zaehle(xml, "<w:tcBorders"), 13)
+    expect_gte(zaehle(xml, "<w:left"), 1)
+    expect_gte(zaehle(xml, "<w:right"), 1)
+
+    # der Tabelleninhalt ist Text (kein Bild) - Ueberschrift und Zelltexte
+    text <- brief_text(dateien)
+    expect_match(text, "Handlungsempfehlung", fixed = TRUE)
+    expect_match(text, "Kategorie", fixed = TRUE)
+    # 12 Zeilen aus dem Blatt Tabelle2 plus Kopfzeile, ohne die Zeile "0"
+    expect_equal(zaehle_regex(xml, "<w:tr[ >]"), 13)
+    expect_false(grepl("nicht teilgenommen", text, fixed = TRUE))
+    # die Empfehlung fuer A1-B2 steht einmal, nicht vier Mal (verbundene Zelle)
+    satz <- "Das Ergebnis liegt oberhalb des Normbereichs. Es besteht kein Handlungsbedarf"
+    treffer <- gregexpr(satz, text, fixed = TRUE)[[1]]
+    expect_equal(sum(treffer > 0), 1)
+    expect_gte(zaehle(xml, "<w:vMerge"), 1)
+
+    # Rechtschreibung im Brief: Dativ nach "bei allen"
+    expect_match(text, "Schülerinnen und Schülern der 5. Klasse", fixed = TRUE)
+    expect_false(grepl("Schülerinnen und Schüler der", text, fixed = TRUE))
+  })
+})
+
+test_that("der Linktext trennt die Saetze hart und der QR-Code ist quadratisch", {
+  skip_if_not(rmarkdown::pandoc_available(), "pandoc nicht gefunden")
+
+  # Harter Umbruch (zwei Leerzeichen vor dem Zeilenwechsel) im Textbaustein
+  kurzlink_zuruecksetzen()
+  testthat::local_mocked_bindings(
+    req_perform = function(...) stop("kein Netz im Test"),
+    .package = "httr2"
+  )
+  qr <- suppressMessages(generate_qrcode("https://example.org/uebungen",
+                                        zielordner = tempdir()))
+  expect_equal(qr$txt,
+               paste0("Sie möchten Ihr Kind unterstützen?  \n",
+                      "Dann schauen Sie hier in unsere Sammlung:\n",
+                      "https://example.org/uebungen"))
+
+  brief_test_umgebung({
+    df <- lade_fixture("klasse_5c.tsv")[1, ]
+    erzeuge_briefe(df, lehrername = "Test, Tina",
+                   qrLink = "https://example.org/uebungen")
+
+    dateien <- erwartete_datei()
+    expect_length(dateien, 1)
+
+    # im Dokument steht genau ein Bild (der QR-Code) - quadratisch und 1 Zoll
+    groessen <- bild_groessen(dateien)
+    expect_equal(nrow(groessen), 1)
+    expect_equal(groessen$cx, groessen$cy)
+    expect_equal(groessen$cx / 914400, 1, tolerance = 0.01)
+
+    # die Tabelle bleibt zusaetzlich im Dokument
+    expect_gte(zaehle(docx_teil(dateien, "word/document.xml"), "<w:tbl"), 1)
+  })
+})
+
+test_that("die Briefe stehen nach Klasse und Name sortiert im Dokument", {
+  skip_if_not(rmarkdown::pandoc_available(), "pandoc nicht gefunden")
+
+  brief_test_umgebung({
+    # Absichtlich in verkehrter Reihenfolge: erst 6c, dann 5c (Anna vor Ben)
+    df <- dplyr::bind_rows(lade_fixture("klasse_6c.tsv")[6, ],
+                           lade_fixture("klasse_5c.tsv")[1:2, ])
+    erzeuge_briefe(df, lehrername = "Test, Tina")
+
+    dateien <- erwartete_datei()
+    expect_length(dateien, 1)
+
+    # erster Brief: 5c, "Beispiel, Ben" (junge Stufe zuerst, dann Name)
+    text <- brief_text(dateien)
+    expect_match(text, "Beispiel, Ben", fixed = TRUE)
+    expect_false(grepl("Testmann, Anna", text, fixed = TRUE))
+    expect_false(grepl("Aydin, Sara", text, fixed = TRUE))
+
+    # danach Anna (5c) und Sara (6c) als eingebettete Dokumente - in dieser
+    # Reihenfolge steht der Brief auch im Dokument
+    eingebettet <- eingebettete_der_reihe_nach(dateien)
+    expect_length(eingebettet, 2)
+    expect_match(brief_text(eingebettet[1]), "Testmann, Anna", fixed = TRUE)
+    expect_match(brief_text(eingebettet[2]), "Aydin, Sara", fixed = TRUE)
   })
 })
 

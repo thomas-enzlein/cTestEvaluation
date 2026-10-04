@@ -126,8 +126,13 @@ getRecommendation <- function(kat) {
 }
 
 styleTable <- function(dt) {
-  # ohne Kategorie-Spalte gibt es nichts zu faerben (kein Abbruch)
-  if (!"Kat." %in% colnames(dt)) return(dt)
+  # Die Spalten stehen im DT-Objekt unter x$data: das Objekt selbst hat keine
+  # Spaltennamen (colnames(dt) ist leer). Eine Pruefung auf colnames(dt) hat die
+  # Faerbung deshalb frueher immer uebersprungen. Ein data.frame kann DT nicht
+  # faerben und wird unveraendert zurueckgegeben.
+  if (is.data.frame(dt)) return(dt)
+  daten <- dt$x$data
+  if (is.null(daten) || !("Kat." %in% colnames(daten))) return(dt)
 
   # Faerbe Zellen in der Tabelle basierend auf der Kategorie
   dt <-
@@ -1350,7 +1355,7 @@ loadData <- function(inputFile) {
 }
 
 
-convert_kat_meaning <- function(kat, table_path = "elternbrief/ergebnisse.xlsx") {
+convert_kat_meaning <- function(kat, table_path = vorlagen_quelle("ergebnisse.xlsx")) {
   # ohne Kategorie (z. B. Kind ohne Werte) gibt es keinen Text - nicht abbrechen
   if (length(kat) == 0 || is.na(kat) || !nzchar(trimws(as.character(kat)))) {
     return("")
@@ -1362,6 +1367,186 @@ convert_kat_meaning <- function(kat, table_path = "elternbrief/ergebnisse.xlsx")
   idx  <- which(df$kategorie == kat)
   
   return(paste0(df$kat_ext[idx], ": ", df$bedeutung[idx]))
+}
+
+#### Ergebnistabelle des Elternbriefes ####
+#
+# Die Tabelle steht im Blatt "Tabelle2" der Kategorie-Datei (ergebnisse.xlsx):
+# Kopfzeile, Zeilen und verbundene Zellen kommen von dort. Fehlt das Blatt -
+# das ist bei allen persoenlichen Kopien der Fall, die vorher angelegt wurden -
+# wird dieselbe Darstellung aus der Zuordnungstabelle abgeleitet: nur kat_ext
+# als "Kategorie", ohne die Zeile "0", ohne die Sternchen-Dubletten und mit
+# verbundenen Zellen fuer gleiche Empfehlungstexte.
+
+# Datei im xlsx-Paket als Text lesen
+.xlsx_teil <- function(pfad, teil) {
+  con <- unz(pfad, teil)
+  on.exit(close(con), add = TRUE)
+  paste(readLines(con, warn = FALSE), collapse = "")
+}
+
+# Arbeitsblatt-Datei zu einem Blattindex (Reihenfolge wie readxl::excel_sheets)
+.blatt_datei <- function(pfad, index) {
+  wb <- .xlsx_teil(pfad, "xl/workbook.xml")
+  rels <- .xlsx_teil(pfad, "xl/_rels/workbook.xml.rels")
+  blaetter <- regmatches(wb, gregexpr("<sheet [^>]*>", wb))[[1]]
+  if (index < 1 || index > length(blaetter)) return(NA_character_)
+  rid <- sub('^.*r:id="([^"]+)".*$', "\\1", blaetter[index])
+  rel <- regmatches(rels, regexpr(paste0('<Relationship[^>]*Id="', rid, '"[^>]*>'), rels))
+  if (length(rel) == 0) return(NA_character_)
+  paste0("xl/", sub('^.*Target="([^"]+)".*$', "\\1", rel))
+}
+
+# Senkrechte verbundene Bereiche eines Blatts, umgerechnet auf Spaltenindex und
+# Datenzeilen der gelesenen Tabelle: data.frame(von, bis, spalte). Die erste
+# Zeile mit Inhalt gilt als Kopfzeile; die Datenzeilen zaehlen ab der Zeile
+# darunter (so liest auch readxl, das fuehrende leere Zeilen weglaesst).
+.blatt_verbunde <- function(pfad, index) {
+  leer <- data.frame(von = integer(0), bis = integer(0), spalte = integer(0))
+  datei <- .blatt_datei(pfad, index)
+  if (is.na(datei)) return(leer)
+  xml <- .xlsx_teil(pfad, datei)
+
+  zeilen <- regmatches(xml, gregexpr("<row [^>]*>.*?</row>", xml))[[1]]
+  if (length(zeilen) == 0) return(leer)
+  hat_wert <- grepl("<v>|<is>", zeilen)
+  if (!any(hat_wert)) return(leer)
+  kopf_pos <- which(hat_wert)[1]
+  kopf_zeile <- as.integer(sub('^.*<row r="([0-9]+)".*$', "\\1", zeilen[kopf_pos]))
+
+  # Spalten der Kopfzeile mit Inhalt - leere Zellen (z. B. eine Spalte vor der
+  # Tabelle) gehoeren nicht dazu und fallen beim Lesen ebenfalls weg. Zerlegt
+  # wird an "</c>": ein Stueck enthaelt dann die Zelle samt ihrem Wert.
+  stuecke <- strsplit(zeilen[kopf_pos], "</c>", fixed = TRUE)[[1]]
+  stuecke <- stuecke[grepl("<v>|<is>", stuecke)]
+  spalten <- sub('^.*<c [^>]*r="([A-Z]+)[0-9]+".*$', "\\1", stuecke)
+
+  verbuende <- regmatches(xml, gregexpr('<mergeCell ref="[^"]+"', xml))[[1]]
+  if (length(verbuende) == 0) return(leer)
+  verbuende <- sub('"$', "", sub('^.*ref="', "", verbuende))
+
+  von_ref <- sub(":.*$", "", verbuende)
+  bis_ref <- ifelse(grepl(":", verbuende), sub("^.*:", "", verbuende), von_ref)
+  spalte_von <- sub("[0-9]+$", "", von_ref)
+  spalte_bis <- sub("[0-9]+$", "", bis_ref)
+  senkrecht <- spalte_von == spalte_bis
+  if (!any(senkrecht)) return(leer)
+
+  ergebnis <- data.frame(
+    von = as.integer(sub("^[A-Z]+", "", von_ref[senkrecht])) - kopf_zeile,
+    bis = as.integer(sub("^[A-Z]+", "", bis_ref[senkrecht])) - kopf_zeile,
+    spalte = match(spalte_von[senkrecht], spalten))
+  ergebnis[!is.na(ergebnis$spalte) & ergebnis$von >= 1 &
+             ergebnis$bis > ergebnis$von, , drop = FALSE]
+}
+
+# Roh gelesenes Blatt: erste Zeile ist die Kopfzeile, fuehrende leere Zeilen und
+# Spalten fallen weg.
+.tabelle_kopf_und_daten <- function(roh) {
+  roh <- as.data.frame(roh, stringsAsFactors = FALSE)
+  while (nrow(roh) > 0 && all(is.na(roh[1, ]))) roh <- roh[-1, , drop = FALSE]
+  while (ncol(roh) > 0 && all(is.na(roh[, 1]))) roh <- roh[, -1, drop = FALSE]
+  while (ncol(roh) > 0 && all(is.na(roh[, ncol(roh)]))) roh <- roh[, -ncol(roh), drop = FALSE]
+  if (nrow(roh) < 2) stop("Die Kategorie-Tabelle ist leer.", call. = FALSE)
+
+  namen <- trimws(as.character(unlist(roh[1, ])))
+  leer_name <- is.na(namen) | !nzchar(namen)
+  namen[leer_name] <- paste0("Spalte ", which(leer_name))
+  daten <- roh[-1, , drop = FALSE]
+  names(daten) <- namen
+  rownames(daten) <- NULL
+  daten
+}
+
+# Anzeige aus der Zuordnungstabelle ableiten (aeltere Dateien ohne "Tabelle2")
+.ergebnis_anzeige_aus_zuordnung <- function(daten) {
+  finde <- function(muster) {
+    i <- grep(muster, names(daten), ignore.case = TRUE)[1]
+    if (length(i) == 0 || is.na(i)) NULL else i
+  }
+  i_ext <- finde("^kat_?ext$")
+  i_bed <- finde("^bedeutung$")
+  i_emp <- finde("^handlungsempfehlung$")
+  if (is.null(i_ext) || is.null(i_bed) || is.null(i_emp)) return(daten)
+
+  anzeige <- data.frame(Kategorie = as.character(daten[[i_ext]]),
+                        Bedeutung = as.character(daten[[i_bed]]),
+                        Handlungsempfehlung = as.character(daten[[i_emp]]),
+                        stringsAsFactors = FALSE)
+  # die Zeile "0" (nicht teilgenommen) gehoert nicht in die Elterntabelle
+  weg <- !is.na(anzeige$Kategorie) & anzeige$Kategorie %in% c("0", "")
+  anzeige <- anzeige[!weg, , drop = FALSE]
+  # Zeilen, die sich nur in der internen Kategorie unterscheiden, einmal zeigen
+  anzeige <- anzeige[!duplicated(anzeige), , drop = FALSE]
+  rownames(anzeige) <- NULL
+  anzeige
+}
+
+# Gleiche Empfehlungstexte in aufeinanderfolgenden Zeilen verbinden
+.ergebnis_verbunde_aus_text <- function(anzeige) {
+  leer <- data.frame(von = integer(0), bis = integer(0), spalte = integer(0))
+  if (nrow(anzeige) < 2) return(leer)
+  spalte <- ncol(anzeige)
+  text <- as.character(anzeige[[spalte]])
+  text[is.na(text)] <- paste0("<leer ", which(is.na(text)), ">")
+  gruppen <- rle(text)
+  bis <- cumsum(gruppen$lengths)
+  von <- c(1, utils::head(bis, -1) + 1)
+  mehrfach <- gruppen$lengths > 1
+  if (!any(mehrfach)) return(leer)
+  data.frame(von = von[mehrfach], bis = bis[mehrfach], spalte = spalte)
+}
+
+# Spaltenbreiten (in cm): die Kategorie-Spalte schmal, der Rest teilt sich die
+# Textbreite.
+.ergebnis_breiten <- function(spalten, gesamt = 16) {
+  if (spalten <= 1) return(gesamt)
+  c(2.0, rep((gesamt - 2.0) / (spalten - 1), spalten - 1))
+}
+
+# Ergebnistabelle des Elternbriefes als echte Word-Tabelle (frueher ein Bild).
+# Inhalt, Ueberschriften und verbundene Zellen kommen aus ergebnisse.xlsx.
+ergebnis_tabelle <- function(pfad = "ergebnisse.xlsx", schrift = 7, breite = 16) {
+  blaetter <- tryCatch(readxl::excel_sheets(pfad), error = function(e) character(0))
+  if (length(blaetter) == 0) {
+    stop("Die Kategorie-Tabelle '", pfad, "' ist nicht lesbar.", call. = FALSE)
+  }
+
+  anzeige_blatt <- if ("Tabelle2" %in% blaetter) "Tabelle2" else blaetter[1]
+  roh <- readxl::read_xlsx(pfad, sheet = anzeige_blatt, col_names = FALSE,
+                           .name_repair = "minimal")
+  anzeige <- .tabelle_kopf_und_daten(roh)
+  verbunde <- .blatt_verbunde(pfad, match(anzeige_blatt, blaetter))
+
+  if (!identical(anzeige_blatt, "Tabelle2")) {
+    anzeige <- .ergebnis_anzeige_aus_zuordnung(anzeige)
+    verbunde <- .ergebnis_verbunde_aus_text(anzeige)
+  }
+  if (nrow(anzeige) == 0) {
+    stop("Die Kategorie-Tabelle '", pfad, "' enthaelt keine Zeilen.", call. = FALSE)
+  }
+  verbunde <- verbunde[verbunde$bis <= nrow(anzeige), , drop = FALSE]
+
+  ft <- flextable::flextable(anzeige)
+  ft <- flextable::theme_booktabs(ft)
+  ft <- flextable::fontsize(ft, size = schrift, part = "all")
+  ft <- flextable::bold(ft, part = "header")
+  ft <- flextable::set_table_properties(ft, layout = "fixed", width = 0)
+  ft <- flextable::width(ft, width = .ergebnis_breiten(ncol(anzeige), breite) / 2.54)
+
+  for (i in seq_len(nrow(verbunde))) {
+    ft <- flextable::merge_at(ft, i = verbunde$von[i]:verbunde$bis[i],
+                              j = verbunde$spalte[i], part = "body")
+  }
+  # Zellentrenner: ohne Linien laesst sich nicht erkennen, welcher Text zu
+  # welcher Kategorie gehoert (waagerecht zwischen den Zeilen, senkrecht
+  # zwischen den Spalten, plus Rahmen)
+  rahmen <- flextable::fp_border_default(width = 0.5)
+  ft <- flextable::border_outer(ft, border = rahmen, part = "all")
+  ft <- flextable::border_inner_h(ft, border = rahmen, part = "all")
+  ft <- flextable::border_inner_v(ft, border = rahmen, part = "all")
+  # verbundene Zelle senkrecht mittig - wie "Verbinden und zentrieren" in Excel
+  flextable::valign(ft, j = ncol(anzeige), valign = "center", part = "body")
 }
 
 # Arbeitskopie der Vorlagen in einem temporaeren Verzeichnis.
@@ -1393,7 +1578,20 @@ vorlagen_aufraeumen <- function(ziel, versuche = 3, pause = 0.2) {
 
 # Dateien, die angepasst werden duerfen. Der Briefkopf (Logo) steckt im Kopf der
 # template.docx - die Datei logo.png wird von keiner Vorlage verwendet.
-.vorlagen_dateien <- c("template.docx", "table.png", "ergebnisse.xlsx")
+#
+# Die Ergebnistabelle des Elternbriefes ist eine echte Word-Tabelle und wird aus
+# ergebnisse.xlsx erzeugt; das frueher anpassbare Bild table.png kommt im Brief
+# nicht mehr vor und ist deshalb nicht mehr Teil dieser Liste.
+.vorlagen_dateien <- c("template.docx", "ergebnisse.xlsx")
+
+# Zentraler Ordner mit den mitgelieferten, anpassbaren Dateien (im App-Ordner).
+# Beide Briefe holen ihre Word-Vorlage hier - es gibt nur noch eine Datei.
+# basis = Ordner, in dem "vorlagen" liegt; voreingestellt das Arbeitsverzeichnis
+# der App, beim Vorbereiten der Arbeitskopie der Ordner neben dem Briefordner.
+vorlagen_quelle <- function(datei = NULL, basis = getwd()) {
+  ordner <- file.path(basis, "vorlagen")
+  if (is.null(datei)) ordner else file.path(ordner, datei)
+}
 
 # Pfad in der Schreibweise des Systems: .pfad_nativ() ist oben bei den
 # Pfadfunktionen definiert (siehe createFilePath).
@@ -1425,10 +1623,10 @@ vorlage_bereitstellen <- function(datei = "template.docx") {
 
   ziel <- .pfad_nativ(file.path(ziel_ordner, datei))
   if (!file.exists(ziel)) {
-    quelle <- file.path(getwd(), "elternbrief", datei)
+    quelle <- vorlagen_quelle(datei)
     if (!file.exists(quelle)) {
-      stop("Die mitgelieferte Vorlage '", datei, "' wurde nicht gefunden.",
-           call. = FALSE)
+      stop("Die mitgelieferte Vorlage '", datei, "' wurde nicht gefunden (erwartet in '",
+           vorlagen_quelle(), "').", call. = FALSE)
     }
     if (!file.copy(quelle, ziel, overwrite = FALSE)) {
       stop("Die Vorlage konnte nicht nach '", ziel, "' kopiert werden.",
@@ -1448,6 +1646,28 @@ vorlagen_bereitstellen <- function() {
   }
   for (datei in .vorlagen_dateien) vorlage_bereitstellen(datei)
   ziel_ordner
+}
+
+# Welche Vorlage gilt gerade? Nur lesen - es wird nichts angelegt. Entweder die
+# persoenliche Kopie (Pfad und Aenderungsdatum) oder die mitgelieferte Vorlage.
+vorlage_status <- function(datei = "template.docx") {
+  pfad <- .pfad_nativ(file.path(vorlagen_ordner(), datei))
+  if (file.exists(pfad)) {
+    return(list(eigen = TRUE, pfad = pfad,
+                zeit = format(file.info(pfad)$mtime, "%d.%m.%Y %H:%M")))
+  }
+  list(eigen = FALSE, pfad = .pfad_nativ(vorlagen_quelle(datei)), zeit = NA_character_)
+}
+
+# Zeile fuer die Oberflaeche: nennt Pfad und Datum der aktiven Vorlage.
+vorlage_status_text <- function(status = vorlage_status()) {
+  if (isTRUE(status$eigen)) {
+    paste0("Persönliche Vorlage: ", status$pfad, " (geändert ", status$zeit, ")")
+  } else {
+    paste0("Es gilt die mitgelieferte Vorlage: ", status$pfad,
+           ". Eine persönliche Kopie entsteht beim ersten Klick auf ",
+           "'Briefvorlage öffnen'.")
+  }
 }
 
 # Angepasste Vorlagen ueber die mitgelieferten kopieren. Nur Layout-Dateien:
@@ -1479,9 +1699,19 @@ vorlagen_ueberlagern <- function(ziel) {
   invisible(uebernommen)
 }
 
-vorlagen_vorbereiten <- function(quelle, praefix) {
+# zentral: Dateien aus dem Ordner "vorlagen", die zusaetzlich in die Arbeitskopie
+# gehoeren (Word-Vorlage fuer beide Briefe, Kategorie-Texte fuer den Elternbrief).
+vorlagen_vorbereiten <- function(quelle, praefix, zentral = "template.docx") {
   if (!dir.exists(quelle)) {
     stop("Vorlagen nicht gefunden: '", quelle, "'", call. = FALSE)
+  }
+  # Der zentrale Vorlagenordner liegt neben dem Briefordner - so haengt die
+  # Arbeitskopie nicht am Arbeitsverzeichnis des Prozesses.
+  basis <- dirname(quelle)
+  fehlend <- zentral[!file.exists(vorlagen_quelle(zentral, basis = basis))]
+  if (length(fehlend) > 0) {
+    stop("Die mitgelieferten Vorlagen fehlen: ", paste(fehlend, collapse = ", "),
+         " (erwartet in '", vorlagen_quelle(basis = basis), "').", call. = FALSE)
   }
   ziel <- file.path(tempdir(), paste0(praefix, "_", Sys.getpid()))
   if (dir.exists(ziel)) vorlagen_aufraeumen(ziel)
@@ -1500,6 +1730,9 @@ vorlagen_vorbereiten <- function(quelle, praefix) {
   }
   dateien <- list.files(quelle, full.names = TRUE)
   kopiert <- file.copy(dateien, ziel, recursive = TRUE)
+  # zentral mitgelieferte Dateien dazu (Word-Vorlage, Kategorie-Texte)
+  kopiert <- c(kopiert, file.copy(vorlagen_quelle(zentral, basis = basis), ziel,
+                                  overwrite = TRUE))
   if (!all(kopiert)) {
     stop("Vorlagen konnten nicht kopiert werden.", call. = FALSE)
   }
@@ -1509,7 +1742,8 @@ vorlagen_vorbereiten <- function(quelle, praefix) {
 }
 
 elternbrief_vorbereiten <- function(quelle = file.path(getwd(), "elternbrief")) {
-  vorlagen_vorbereiten(quelle, "elternbrief")
+  vorlagen_vorbereiten(quelle, "elternbrief",
+                       zentral = c("template.docx", "ergebnisse.xlsx"))
 }
 
 # Zwischendateien von knitr aus der Arbeitskopie entfernen
@@ -1595,12 +1829,161 @@ generate_qrcode <- function(qrLink, zielordner = tempdir()) {
   # Verweis auf die Uebungssammlung: mit Kurzlink, wenn das moeglich ist
   kurz <- shorten_url(qrLink)
   ziel <- if (is.null(kurz)) qrLink else kurz
-  linkText <- paste("Sie möchten Ihr Kind unterstützen?",
+  # Harter Zeilenumbruch nach dem ersten Satz: die zwei Leerzeichen vor dem
+  # Zeilenwechsel sind in Markdown ein harter Umbruch. Ein einzelnes "\n" waere
+  # nur ein weicher Umbruch - pandoc zieht die beiden Saetze dann zu einer Zeile
+  # zusammen, die unschon umbricht.
+  linkText <- paste("Sie möchten Ihr Kind unterstützen?  ",
                     "Dann schauen Sie hier in unsere Sammlung:", ziel,
                     sep = "\n")
 
   return(list(img = name,
               txt = linkText))
+}
+
+#### Auswahl der Klassen fuer die Briefe ####
+#
+# Der Elternbrief kann fuer eine einzelne Klasse, fuer einen ganzen Jahrgang oder
+# fuer alle geladenen Klassen erzeugt werden. Vorausgewaehlt ist die hoechste
+# Klasse; die Logik steht hier, damit sie ohne Oberflaeche pruefbar ist.
+
+# Jahrgang aus dem Klassennamen: "5c" -> 5, "10a" -> 10, sonst NA.
+brief_jahrgang <- function(klassen) {
+  suppressWarnings(as.numeric(sub("^[^0-9]*([0-9]+).*$", "\\1", as.character(klassen))))
+}
+
+# Geladene Klassen: eindeutig, sortiert, ohne leere Werte.
+brief_klassen <- function(df) {
+  if (is.null(df) || !("Klasse" %in% colnames(df)) || nrow(df) == 0) return(character(0))
+  klassen <- trimws(as.character(df$Klasse))
+  sort(unique(klassen[!is.na(klassen) & nzchar(klassen)]))
+}
+
+# Auswahlliste fuer die Oberflaeche: alle Klassen, je Jahrgang, jede Klasse.
+# Rueckgabe: benannter Vektor (Anzeigetext = Name, Schluessel = Wert).
+brief_auswahl_liste <- function(klassen) {
+  klassen <- sort(unique(as.character(klassen)))
+  klassen <- klassen[!is.na(klassen) & nzchar(trimws(klassen))]
+  if (length(klassen) == 0) return(stats::setNames(character(0), character(0)))
+
+  jahre <- brief_jahrgang(klassen)
+  auswahl <- c("Alle geladenen Klassen" = "alle")
+  for (jahr in sort(unique(jahre[!is.na(jahre)]))) {
+    drin <- klassen[!is.na(jahre) & jahre == jahr]
+    auswahl[[paste0("Jahrgang ", jahr, " (", paste(drin, collapse = ", "), ")")]] <-
+      paste0("jahrgang:", jahr)
+  }
+  for (klasse in klassen) auswahl[[klasse]] <- klasse
+  auswahl
+}
+
+# Vorauswahl: hoechster Jahrgang, bei Gleichstand alphanumerisch der erste
+# (bei 5a/5b/6a also 6a, bei 5a/5b/5c also 5a).
+brief_vorauswahl <- function(klassen) {
+  klassen <- sort(unique(as.character(klassen)))
+  klassen <- klassen[!is.na(klassen) & nzchar(trimws(klassen))]
+  if (length(klassen) == 0) return(NULL)
+
+  jahre <- brief_jahrgang(klassen)
+  if (all(is.na(jahre))) return(klassen[1])
+  klassen[order(-jahre, klassen, na.last = TRUE)][1]
+}
+
+# Daten auf die Auswahl einschraenken. Ohne (oder mit unbekannter) Auswahl
+# bleiben alle Zeilen - so verhaelt sich der Knopf wie vor der Auswahl.
+brief_daten <- function(df, auswahl = "alle") {
+  if (is.null(df) || nrow(df) == 0) return(df)
+  if (is.null(auswahl) || length(auswahl) != 1 || is.na(auswahl)) return(df)
+  if (identical(as.character(auswahl), "alle")) return(df)
+
+  klassen <- as.character(df$Klasse)
+  if (startsWith(as.character(auswahl), "jahrgang:")) {
+    jahr <- suppressWarnings(as.numeric(sub("^jahrgang:", "", as.character(auswahl))))
+    idx <- which(!is.na(klassen) & brief_jahrgang(klassen) == jahr)
+    return(df[idx, , drop = FALSE])
+  }
+  idx <- which(!is.na(klassen) & klassen == as.character(auswahl))
+  if (length(idx) == 0) {
+    # Die Auswahl ist dann ein Buchstabe (Kohorte des Entwicklungsbriefs):
+    # alle Klassen dieses Buchstabens - z. B. direkt nach dem Umschalten der
+    # Briefart, bevor die Auswahlliste neu aufgebaut ist.
+    idx <- which(!is.na(klassen) & .brief_buchstabe(klassen) == .brief_buchstabe(auswahl))
+  }
+  df[idx, , drop = FALSE]
+}
+
+# Buchstabe einer Klasse: "6c" -> "c"
+.brief_buchstabe <- function(klassen) {
+  buchstabe <- gsub("[^A-Za-z]", "", as.character(klassen))
+  buchstabe[!is.na(buchstabe) & nzchar(buchstabe)]
+}
+
+# Klassenbuchstaben der Auswahl - fuer den Entwicklungsbrief: dort gehoeren zu
+# einer Klasse immer BEIDE Jahrgaenge, deshalb wird ueber den Buchstaben
+# gefiltert ("6c" -> c, "Jahrgang 5" -> die Buchstaben der 5er Klassen).
+# Ein leerer Vektor bedeutet: keine Einschraenkung (alle).
+brief_buchstaben <- function(klassen, auswahl = "alle") {
+  if (is.null(auswahl) || length(auswahl) != 1 || is.na(auswahl)) return(character(0))
+  if (identical(as.character(auswahl), "alle")) return(character(0))
+
+  klassen <- as.character(klassen)
+  if (startsWith(as.character(auswahl), "jahrgang:")) {
+    jahr <- suppressWarnings(as.numeric(sub("^jahrgang:", "", as.character(auswahl))))
+    gewaehlt <- klassen[!is.na(brief_jahrgang(klassen)) & brief_jahrgang(klassen) == jahr]
+  } else {
+    gewaehlt <- as.character(auswahl)
+  }
+  sort(unique(.brief_buchstabe(gewaehlt)))
+}
+
+# Daten auf diese Buchstaben einschraenken: beide Jahrgaenge bleiben erhalten.
+brief_daten_buchstaben <- function(df, buchstaben) {
+  if (is.null(df) || nrow(df) == 0 || length(buchstaben) == 0) return(df)
+  klassen <- as.character(df$Klasse)
+  idx <- which(!is.na(klassen) & .brief_buchstabe(klassen) %in% buchstaben)
+  df[idx, , drop = FALSE]
+}
+
+# Auswahlliste fuer den Entwicklungsbrief: eine Kohorte je Klassenbuchstabe,
+# beschriftet mit dem Paar aus der Stufenauswahl ("a: 5a -> 6a"). Schluessel ist
+# der Buchstabe; ein Jahr allein laesst sich nicht vergleichen.
+brief_kohorten_liste <- function(klassen, stufe_alt = NULL, stufe_neu = NULL) {
+  klassen <- sort(unique(as.character(klassen)))
+  klassen <- klassen[!is.na(klassen) & nzchar(trimws(klassen))]
+  if (length(klassen) == 0) return(stats::setNames(character(0), character(0)))
+
+  buchstaben <- gsub("[^A-Za-z]", "", klassen)
+  jahre <- brief_jahrgang(klassen)
+  auswahl <- c("Alle Kohorten" = "alle")
+  for (buchstabe in sort(unique(buchstaben))) {
+    drin <- klassen[buchstaben == buchstabe]
+    von <- drin[!is.na(jahre[buchstaben == buchstabe]) &
+                  jahre[buchstaben == buchstabe] == stufe_alt]
+    bis <- drin[!is.na(jahre[buchstaben == buchstabe]) &
+                  jahre[buchstaben == buchstabe] == stufe_neu]
+    label <- if (length(von) > 0 && length(bis) > 0) {
+      paste0(buchstabe, ": ", von[1], " \u2192 ", bis[1])
+    } else if (length(bis) > 0) {
+      paste0(buchstabe, " (nur ", bis[1], ")")
+    } else if (length(von) > 0) {
+      paste0(buchstabe, " (nur ", von[1], ")")
+    } else {
+      paste0(buchstabe, ": ", paste(drin, collapse = ", "))
+    }
+    auswahl[[label]] <- buchstabe
+  }
+  auswahl
+}
+
+# Vorauswahl im Entwicklungsbrief: die Kohorte der hoechsten geladenen Klasse
+# (6a -> Buchstabe a).
+brief_vorauswahl_kohorte <- function(klassen) {
+  klasse <- brief_vorauswahl(klassen)
+  if (is.null(klasse)) return(NULL)
+  buchstabe <- gsub("[^A-Za-z]", "", as.character(klasse))
+  if (!nzchar(buchstabe)) buchstabe <- .brief_buchstabe(klassen)[1]
+  if (length(buchstabe) == 0 || is.na(buchstabe) || !nzchar(buchstabe)) return(NULL)
+  buchstabe
 }
 
 create_letters <- function(df, lehrername, signatur = "", qrLink = NULL,
@@ -1623,6 +2006,12 @@ create_letters <- function(df, lehrername, signatur = "", qrLink = NULL,
 
   df <- janitor::clean_names(df) %>%
     mutate(kat = str_remove(kat, pattern = "\\*"))
+
+  # Feste Reihenfolge der Briefe: erst nach Jahrgang/Klasse, dann nach Name.
+  # Damit ist auch eine Auswahl ueber mehrere Klassen (Jahrgang oder alle) im
+  # Dokument sauber gruppiert.
+  stufe <- suppressWarnings(as.numeric(gsub("[^0-9]", "", as.character(df$klasse))))
+  df <- df[order(stufe, as.character(df$klasse), as.character(df$name)), , drop = FALSE]
 
   melde(0, "Vorlagen werden vorbereitet ...")
 

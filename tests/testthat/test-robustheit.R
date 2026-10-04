@@ -117,6 +117,32 @@ test_that("die Anzeige bricht bei fehlenden Spalten nicht ab", {
   expect_identical(styleTable(einfach), einfach)
 })
 
+test_that("die Uebersichtstabelle faerbt die Kategorie-Spalte", {
+  # Regression aus 1.7: die Sperre am Anfang von styleTable() hat die Spalten
+  # des DT-Objekts geprueft - dort ist colnames() leer, gefaerbt wurde nie.
+  df <- lade_fixture("klasse_5c.tsv")
+  dt <- styleTable(DT::datatable(df))
+
+  js <- paste(utils::capture.output(dput(dt$x$options)), collapse = "")
+  for (farbe in unique(cols)) {
+    expect_match(js, farbe, fixed = TRUE)
+  }
+  # die Kategorie-Werte stehen als Bedingung im Stylesheet (im JS-Quelltext
+  # stehen die Anfuehrungszeichen als \")
+  expect_match(js, 'value == \\"3C\\"', fixed = TRUE)
+
+  # ohne Kategorie-Spalte wird nichts gefaerbt (kein Fehler)
+  ohne <- df[, setdiff(colnames(df), "Kat."), drop = FALSE]
+  js_ohne <- paste(utils::capture.output(dput(styleTable(DT::datatable(ohne))$x$options)),
+                   collapse = "")
+  for (farbe in unique(cols)) {
+    expect_false(grepl(farbe, js_ohne, fixed = TRUE))
+  }
+
+  # andere Aufrufer (data.frame) bekommen das Objekt unveraendert zurueck
+  expect_identical(styleTable(df), df)
+})
+
 test_that("eine Datei ohne Werte laesst sich laden und anzeigen", {
   # Regression: frueher brach das Laden ab, weil read_tsv die Spalten suchte
   df <- lade_fixture("falsche_spalten.tsv")

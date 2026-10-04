@@ -3,6 +3,53 @@
 Der Abschnitt der Version, die als Tag veröffentlicht wird, wird als Beschreibung des
 GitHub-Releases verwendet.
 
+## 1.10
+
+**Elternbrief: Klassenauswahl.** Im Tab `Elternbrief` wird jetzt gewählt, für wen die Briefe
+entstehen: eine einzelne Klasse, ein ganzer Jahrgang oder alle geladenen Klassen. Voreingestellt
+ist die höchste geladene Klasse (bei 5a und 6a also 6a, bei 5a, 5b und 5c die 5a). Alle Briefe
+einer Auswahl stehen in **einer** Word-Datei und sind darin nach Klasse und Name sortiert.
+
+**Ergebnistabelle als echte Word-Tabelle.** Die Seite `Ergebnisse` des Elternbriefes enthielt
+bisher ein Bild (`table.png`): Der Text war nicht markierbar. Die Tabelle ist jetzt eine normale
+Word-Tabelle aus `ergebnisse.xlsx`. Vorlage dafür ist das Blatt `Tabelle2` – Zeilen, Überschriften
+und **verbundene Zellen** kommen von dort (12 Zeilen, Kategorie, Bedeutung, Handlungsempfehlung;
+gleiche Empfehlungen einmal über mehrere Zeilen verbunden). Fehlt das Blatt, wie in den bisherigen
+persönlichen Kopien, wird dieselbe Tabelle aus dem ersten Blatt abgeleitet: ohne die Zeile „0",
+ohne die Sternchen-Doppelzeilen und mit verbundenen Empfehlungstexten. Schriftgröße 7 pt und
+Zellentrenner (waagerecht und senkrecht), damit jede Zeile eindeutig zu ihrer Kategorie gehört –
+so bleibt der Brief auf zwei Seiten.
+
+**QR-Code und Linktext.** Der QR-Code war im Brief 25 % breiter als hoch (1,25 × 1,00 Zoll bei
+quadratischem Bild) und dadurch sichtbar verzerrt; er wird jetzt quadratisch und mit 1 Zoll
+eingefügt. Zwischen `Sie möchten Ihr Kind unterstützen?` und `Dann schauen Sie hier in unsere
+Sammlung:` steht ein echter Zeilenumbruch, die Zeile bricht also nicht mehr an beliebiger Stelle
+um; vor dem Linktext steht jetzt ein Abstand zur Tabelle.
+
+**Infobrief: Klassenauswahl und optionale Grußformel.** Der Tab `Infobrief` hat dieselbe
+Auswahl wie der Elternbrief, und sie richtet sich nach der Briefart: beim `Stand je Klasse` sind es
+die **Klassen** (alle, ein Jahrgang, eine Klasse), beim Entwicklungsbrief die **Kohorten** mit dem
+Paar aus der Stufenauswahl (`c: 5c → 6c`; fehlt ein Jahr, steht `c (nur 5c)`). Vorausgewählt ist
+jeweils die höchste geladene Klasse bzw. ihre Kohorte. Beim Stand-Brief bestimmt die Auswahl die
+Seiten im Dokument, beim Entwicklungsbrief die Kohorte – alle Zahlen im Brief beziehen sich dann
+auf die Auswahl. Der `Absender` ist optional: bleibt das Feld leer, endet der Brief ohne
+Grußformel (der Infobrief geht ans Kollegium).
+
+**Kategorie-Spalte wieder farbig.** Die Spalte `Kat.` der Übersichtstabelle war seit 1.7 nicht
+mehr eingefärbt: die Prüfung „hat die Tabelle eine Kategorie-Spalte?" fragte das DT-Objekt statt
+seiner Daten, dessen Spaltennamen leer sind. Jetzt gilt wieder die gewohnte Farbzuordnung
+(grün/gelb/orange/rot wie in Excel und in den Briefen).
+
+**Rechtschreibung.** Im Elternbrief heißt es jetzt richtig `bei allen Schülerinnen und Schülern
+der 5. Klasse` (Dativ), ein doppeltes Leerzeichen ist entfernt.
+
+**Vorlagen an einer Stelle.** Beide Briefe nutzen dieselbe Word-Vorlage; die zweite, identische
+Kopie im Infobrief-Ordner ist entfallen. Die mitgelieferten anpassbaren Dateien liegen zentral in
+`vorlagen\` (Word-Vorlage, `ergebnisse.xlsx`), die persönliche Kopie weiterhin unter
+`Dokumente\C-Test Auswertung\vorlagen` – sie überlebt ein Update unverändert. Im Tab
+`Elternbrief` steht jetzt unter den Knöpfen, **welche** Vorlage gerade gilt (Pfad und
+Änderungsdatum).
+
 ## 1.9
 
 **Sortierung in Word und Excel.** Die beim Speichern erzeugten Dateien sind jetzt erst nach Klasse,

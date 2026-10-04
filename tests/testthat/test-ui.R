@@ -17,9 +17,13 @@ test_that("die UI baut sich auf und enthaelt alle zentralen Elemente", {
                "siPlotType", "lehrername", "signatur", "qrLink", "btBrief",
                # Infobrief und Stand-Brief: Briefart, Absender, Knopf
                "siBrieftyp", "infoAbsender", "btInfobrief", "infobriefHinweis",
+               # Auswahl der Klassen fuer den Infobrief
+               "infoAuswahlUI",
                # Vorlagen und Einstellungen (Elternbrief und Infobrief)
                "btVorlageOeffnen", "btVorlagenOrdner", "btEinstellungen",
-               "vorlagenHinweis")) {
+               "vorlagenHinweis", "vorlageStatus",
+               # Auswahl der Klassen fuer die Elternbriefe
+               "briefAuswahlUI")) {
     expect_match(html, paste0('id="', id, '"'), fixed = TRUE)
   }
   # die Anrede wird automatisch gebildet - ein Feld fuer die Klassenleitung

@@ -259,6 +259,31 @@ server <- function(input, output, session) {
   })
   
   #### Elternbrief #####
+
+  # Auswahl fuer die Elternbriefe: alle geladenen Klassen, ein Jahrgang oder eine
+  # einzelne Klasse. Vorausgewaehlt ist die hoechste Klasse - aber nur, wenn sich
+  # der Bestand der Klassen aendert. Eine eigene Wahl bleibt sonst stehen, damit
+  # eine Korrektur an den Daten die Auswahl nicht unbemerkt zuruecksetzt.
+  brief_klassen_zuletzt <- NULL
+
+  output$briefAuswahlUI <- renderUI({
+    klassen <- brief_klassen(rv$df)
+    if (length(klassen) == 0) return(helpText("Noch keine Daten geladen."))
+
+    gewaehlt <- shiny::isolate(input$briefKlassen)
+    if (!identical(klassen, brief_klassen_zuletzt)) {
+      brief_klassen_zuletzt <<- klassen
+      gewaehlt <- brief_vorauswahl(klassen)
+    }
+    auswahl <- brief_auswahl_liste(klassen)
+    if (is.null(gewaehlt) || !(gewaehlt %in% unname(auswahl))) {
+      gewaehlt <- brief_vorauswahl(klassen)
+    }
+
+    selectInput(inputId = "briefKlassen", label = "Klassen für die Briefe",
+                choices = auswahl, selected = gewaehlt)
+  })
+
   observeEvent(input$btBrief, {
     
     if(rv$inital) {
@@ -268,6 +293,15 @@ server <- function(input, output, session) {
     
     if(!isTruthy(input$lehrername)) {
       showNotification("Bitte Lehrername eingeben.", type = "error")
+      return()
+    }
+
+    # Nur die gewaehlten Klassen (Vorgabe: die hoechste geladene Klasse). Ohne
+    # Auswahl - etwa in Tests - bleiben alle Zeilen.
+    daten <- brief_daten(rv$df, input$briefKlassen)
+    if(nrow(daten) == 0) {
+      showNotification("Für die gewählte Auswahl sind keine Daten vorhanden.",
+                       type = "error")
       return()
     }
     
@@ -289,7 +323,7 @@ server <- function(input, output, session) {
     withProgress(message = "Elternbriefe werden erstellt", value = 0,
                  detail = "Vorbereitung ...", {
       ergebnis <- tryCatch({
-        list(ok = TRUE, wert = create_letters(rv$df, 
+        list(ok = TRUE, wert = create_letters(daten, 
                                               lehrername = input$lehrername, 
                                               signatur = input$signatur,
                                               qrLink = input$qrLink,
@@ -308,7 +342,8 @@ server <- function(input, output, session) {
     }
     
     msgs <- paste0("Elternbriefe erstellt unter: ", createFilePath(NULL, ""),
-                   " (", ergebnis$wert$erstellt, " Brief(e))")
+                   " (", ergebnis$wert$erstellt, " Brief(e) für ",
+                   paste(unique(as.character(daten$Klasse)), collapse = ", "), ")")
     if(isTRUE(sicherung$geschrieben)) {
       msgs <- paste0(msgs, "\n", sicherung$meldung)
     }
@@ -340,6 +375,15 @@ server <- function(input, output, session) {
                     "unabhängig."))
   })
 
+  # Anzeige der aktiven Vorlage (Pfad und Datum). Nach dem Oeffnen bzw.
+  # Bereitstellen wird sie neu eingelesen.
+  vorlagen_stand <- reactiveVal(0)
+
+  output$vorlageStatus <- renderUI({
+    vorlagen_stand()
+    helpText(vorlage_status_text())
+  })
+
   # Datei bzw. Ordner oeffnen; Fehler (z. B. fehlende Schreibrechte) werden
   # gemeldet statt still zu scheitern
   oeffne_vorlage <- function(was = c("datei", "ordner", "einstellungen")) {
@@ -362,6 +406,7 @@ server <- function(input, output, session) {
     }
 
     oeffne_datei(ergebnis$pfad)
+    vorlagen_stand(vorlagen_stand() + 1)
     msgs <- paste0(switch(was,
                           datei = "Briefvorlage geöffnet: ",
                           ordner = "Vorlagenordner geöffnet: ",
@@ -670,6 +715,55 @@ server <- function(input, output, session) {
   })
   ist_standbrief <- reactive(identical(brieftyp(), "stand"))
 
+  # Auswahl fuer den Infobrief. Die Eintraege richten sich nach der Briefart:
+  #   Stand je Klasse  -> Klassen wie im Elternbrief (alle, Jahrgang, Klasse)
+  #   Entwicklung      -> Kohorten, also das Paar beider Jahrgaenge
+  #                       ("a: 5a -> 6a"), weil eine Klasse dort fuer ihre
+  #                       Kohorte steht
+  # Vorausgewaehlt ist jeweils die hoechste geladene Klasse (bzw. ihre Kohorte).
+  # Eine eigene Wahl bleibt stehen, solange Klassenbestand und Briefart gleich
+  # bleiben.
+  info_auswahl_stand <- NULL
+
+  output$infoAuswahlUI <- renderUI({
+    klassen <- brief_klassen(rv$df)
+    if (length(klassen) == 0) return(helpText("Noch keine Daten geladen."))
+
+    entwicklung <- !ist_standbrief()
+    lage <- list(art = if (entwicklung) "entwicklung" else "stand", klassen = klassen)
+
+    gewaehlt <- shiny::isolate(input$infoKlassen)
+    if (!identical(lage, info_auswahl_stand)) {
+      info_auswahl_stand <<- lage
+      gewaehlt <- NULL          # neue Lage: neu vorauswaehlen
+    }
+
+    if (entwicklung) {
+      auswahl <- brief_kohorten_liste(klassen, input$siStufeAlt, input$siStufeNeu)
+      vorgabe <- brief_vorauswahl_kohorte(klassen)
+      beschriftung <- "Kohorten für den Brief"
+    } else {
+      auswahl <- brief_auswahl_liste(klassen)
+      vorgabe <- brief_vorauswahl(klassen)
+      beschriftung <- "Klassen für den Brief"
+    }
+    if (is.null(gewaehlt) || !(gewaehlt %in% unname(auswahl))) {
+      gewaehlt <- vorgabe
+    }
+
+    selectInput(inputId = "infoKlassen", label = beschriftung,
+                choices = auswahl, selected = gewaehlt)
+  })
+
+  # Stand-Brief: die gewaehlten Klassen. Entwicklungsbrief: beide Jahrgaenge der
+  # gewaehlten Klassenbuchstaben - ein Jahr allein liesse sich nicht vergleichen.
+  info_daten <- reactive({
+    brief_daten(rv$df, input$infoKlassen)
+  })
+  info_buchstaben <- reactive({
+    brief_buchstaben(brief_klassen(rv$df), input$infoKlassen)
+  })
+
   observeEvent(input$btInfobrief, {
     if(ist_standbrief()) {
       ergebnis <- standbrief_erstellen()
@@ -681,7 +775,18 @@ server <- function(input, output, session) {
                               "\"Stand je Klasse\" wählen."), type = "error")
       return()
     }
-    k <- cohort_oder_null()
+
+    # ohne Einschraenkung dieselbe Zuordnung wie in der Tabelle, sonst aus den
+    # gewaehlten Jahrgaengen neu berechnet (mit denselben Entscheidungen)
+    buchstaben <- info_buchstaben()
+    k <- if(length(buchstaben) == 0) {
+      cohort_oder_null()
+    } else {
+      tryCatch(build_cohort(brief_daten_buchstaben(rv$df, buchstaben),
+                            input$siStufeAlt, input$siStufeNeu,
+                            entscheidungen = rv$entscheidungen),
+               error = function(e) NULL)
+    }
     if(is.null(k) || nrow(cohort_gematcht(k)) == 0) {
       showNotification(paste0("Keine zugeordneten Kinder - bitte die Zuordnung ",
                               "in der Tabelle prüfen."), type = "error")
@@ -718,7 +823,13 @@ server <- function(input, output, session) {
       melde_hinweis("Es sind keine Daten geladen.")
       return(NULL)
     }
-    statistik <- tryCatch(stand_statistik(rv$df), error = function(e) NULL)
+    # nur die gewaehlten Klassen (Vorgabe: die hoechste geladene Klasse)
+    daten <- info_daten()
+    if(is.null(daten) || nrow(daten) == 0) {
+      melde_hinweis("Für die gewählte Auswahl sind keine Daten vorhanden.")
+      return(NULL)
+    }
+    statistik <- tryCatch(stand_statistik(daten), error = function(e) NULL)
     if(is.null(statistik) || nrow(statistik) == 0 || !any(statistik$n_werte > 0)) {
       melde_hinweis("Es sind keine Kinder mit Werten geladen.")
       return(NULL)
@@ -730,7 +841,7 @@ server <- function(input, output, session) {
                  detail = "Vorbereitung ...", {
       ergebnis <- tryCatch({
         list(ok = TRUE,
-             wert = create_standbrief(rv$df, absender = input$infoAbsender,
+             wert = create_standbrief(daten, absender = input$infoAbsender,
                                       fortschritt = function(anteil, text) {
                                         setProgress(value = anteil, detail = text)
                                       }))

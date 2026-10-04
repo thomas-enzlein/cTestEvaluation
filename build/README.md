@@ -73,7 +73,8 @@ Laufzeitdateien nicht mitschleppen).
      (so wie auf einem fremden Rechner). Fehlt etwas, bricht er ab – ein Setup ohne
      App-Pakete kann so nicht mehr entstehen.
 3. **Quellcode spiegeln** nach `app\` – ohne `.git`, `.github`, `tests`, `build`,
-   `Auswertungen`, `req_dev.txt`, Word-Sperrdateien.
+   `Auswertungen`, `req_dev.txt`, Word-Sperrdateien. Die Word-Vorlage und die Kategorie-Texte
+   liegen zentral in `vorlagen\`; beide Briefe holen sie von dort.
 4. **Build-Informationen** schreiben: `build-info.txt` (Version, Datum, Commit, R, Quelle,
    Chrome samt Herkunft, pandoc) und `build-info-pakete.csv` (Paketversionen). Damit ist
    nachvollziehbar, womit ein Setup gebaut wurde – beide Dateien werden mit ausgeliefert
@@ -86,7 +87,8 @@ Laufzeitdateien nicht mitschleppen).
 <Installationsordner>            Vorgabe: C:\ProgramData\C-Test Auswertung
   run.bat, run.R, icon.ico       Launcher
   README.md, LICENSE.md, build-info.txt
-  app\                           Quellcode der App (inkl. elternbrief\, infobrief\, helpfiles\)
+  app\                           Quellcode der App (inkl. elternbrief\, infobrief\, vorlagen\, helpfiles\)
+                                 vorlagen\ = Word-Vorlage und Kategorie-Texte für beide Briefe
   R\                             portables R 4.5.3 mit allen Paketen
   chrome\                        normales Chrome (Fenster ohne Adressleiste via --app)
   pandoc\                        pandoc für die Word-Briefe

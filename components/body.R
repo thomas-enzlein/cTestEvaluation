@@ -163,10 +163,13 @@ body <- dashboardBody(
                                        selected = "stand")),
             column(width = 3,
                    shiny::textInput(inputId = "infoAbsender",
-                                    label = "Absender (optional)",
+                                    label = "Absender (leer = ohne Grußformel)",
                                     placeholder = "Max Mustermann")),
             column(width = 3,
                    createActionButton("btInfobrief", "Infobrief erstellen", icon("file-lines")))
+          ),
+          fluidRow(
+            column(width = 12, uiOutput("infoAuswahlUI"))
           ),
           fluidRow(
             column(width = 12, uiOutput("infobriefHinweis"))
@@ -205,6 +208,9 @@ body <- dashboardBody(
                  title = "Elternbriefe erstellen",
                  column(width = 12,
                         fluidRow(
+                          shiny::uiOutput(outputId = "briefAuswahlUI")
+                        ),
+                        fluidRow(
                           shiny::textInput(inputId = "lehrername", 
                                            label = "Name des Lehrers",
                                            placeholder = "Max Mustermann")  
@@ -233,6 +239,9 @@ body <- dashboardBody(
                  title = "Vorlagen und Einstellungen",
                  fluidRow(
                    column(width = 12, uiOutput("vorlagenHinweis"))
+                 ),
+                 fluidRow(
+                   column(width = 12, uiOutput("vorlageStatus"))
                  ),
                  fluidRow(
                    column(width = 4,

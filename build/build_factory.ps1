@@ -430,7 +430,8 @@ Copy-Item (Join-Path $RepoRoot "README.md") $FactoryDir -Force
 Copy-Item (Join-Path $RepoRoot "LICENSE.md") $FactoryDir -Force
 
 foreach ($muss in @("app\app.R", "app\ui.R", "app\server.R", "app\global.R",
-                    "app\functions\functions.R", "app\infobrief\abschluss.Rmd")) {
+                    "app\functions\functions.R", "app\infobrief\abschluss.Rmd",
+                    "app\vorlagen\template.docx", "app\vorlagen\ergebnisse.xlsx")) {
     if (!(Test-Path (Join-Path $FactoryDir $muss))) { Abbruch "Im Auslieferungsordner fehlt: $muss" }
 }
 if (Test-Path (Join-Path $AppQuelle "Auswertungen")) {

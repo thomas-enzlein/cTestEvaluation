@@ -64,9 +64,18 @@ exist (`62,5 → -`), so a missing year does not hide a value.
 ## Templates and settings
 
 Parent letters and the Infobrief share one Word template. The tab `Elternbrief` opens it (and
-the folder with the editable files: `table.png` for the result table, `ergebnisse.xlsx` for the
-category texts). Editing happens on a personal copy under `Dokumente\C-Test Auswertung\vorlagen`,
-which survives an update of the app; the same buttons create it on first use.
+the folder with the editable files: `template.docx` for the layout, `ergebnisse.xlsx` for the
+category texts). The parents' result table is a real Word table built from the sheet `Tabelle2`
+of that file (rows, headers and merged cells are taken over; without that sheet it is derived
+from the first sheet). Editing happens on a personal copy under
+`Dokumente\C-Test Auswertung\vorlagen`, which survives an update of the app; the same buttons
+create it on first use, and the tab shows which template is active.
+
+The parent letters can be created for a single class, a whole year level or all loaded classes;
+the highest loaded class is preselected, and one file holds the letters of the selection, sorted
+by class and name. The Infobrief tab offers the same selection: for the `Stand je Klasse` report
+it picks the classes of the document, for the development report the cohort (5c and 6c belong
+together). Its `Absender` is optional - without a name the report ends without a closing formula.
 
 Personal entries - name, signature, exercise link, sender, class teacher, item count and the
 statistics view - are written automatically to `einstellungen.txt` next to it and applied at the

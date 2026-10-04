@@ -7,9 +7,16 @@
 # Elternbrief UND Infobrief gelten.
 
 # Persoenlicher Vorlagenordner im Test: ueber dieselbe Option, die auch der
-# Ausgabeordner-Fallback nutzt (benutzer_ausgabeordner()).
-mit_benutzerordner <- function(code) {
+# Ausgabeordner-Fallback nutzt (benutzer_ausgabeordner()). Dazu wird der zentrale
+# Vorlagenordner in das Testverzeichnis kopiert - dort sucht die App ihn relativ
+# zum Arbeitsverzeichnis.
+mit_benutzerordner <- function(code, zentral = TRUE) {
   withr::with_tempdir({
+    if (zentral) {
+      dir.create("vorlagen")
+      file.copy(list.files(file.path(projekt_root, "vorlagen"), full.names = TRUE),
+                "vorlagen", recursive = TRUE)
+    }
     withr::with_options(list(ctest.outdir.fallback = file.path(getwd(), "benutzer")),
                         force(code))
   })
@@ -60,7 +67,7 @@ test_that("vorlage_bereitstellen kopiert die mitgelieferte Vorlage einmalig", {
     withr::with_dir(projekt_root, {
       ziel <- vorlage_bereitstellen("template.docx")
       expect_true(file.exists(ziel))
-      expect_equal(md5(ziel), md5(file.path(projekt_root, "elternbrief", "template.docx")))
+      expect_equal(md5(ziel), md5(file.path(projekt_root, "vorlagen", "template.docx")))
 
       # eine vorhandene Anpassung wird nie ueberschrieben
       writeLines("angepasst", ziel, useBytes = TRUE)
@@ -86,15 +93,15 @@ test_that("eine angepasste Vorlage ueberlagert die mitgelieferte", {
     withr::with_dir(projekt_root, {
       ordner <- vorlagen_ordner(anlegen = TRUE)
       writeLines("meine vorlage", file.path(ordner, "template.docx"), useBytes = TRUE)
-      writeLines("mein bild", file.path(ordner, "table.png"), useBytes = TRUE)
 
-      arbeitsordner <- vorlagen_vorbereiten(file.path(projekt_root, "elternbrief"), "test")
+      arbeitsordner <- elternbrief_vorbereiten(file.path(projekt_root, "elternbrief"))
       on.exit(vorlagen_aufraeumen(arbeitsordner), add = TRUE)
 
       expect_equal(readLines(file.path(arbeitsordner, "template.docx"), warn = FALSE),
                    "meine vorlage")
-      expect_equal(readLines(file.path(arbeitsordner, "table.png"), warn = FALSE),
-                   "mein bild")
+      # ohne persoenliche Kopie gilt die zentral mitgelieferte Kategorie-Tabelle
+      expect_equal(md5(file.path(arbeitsordner, "ergebnisse.xlsx")),
+                   md5(file.path(projekt_root, "vorlagen", "ergebnisse.xlsx")))
       # die Logik bleibt unberuehrt: das Rmd ist das mitgelieferte
       expect_equal(md5(file.path(arbeitsordner, "elternbrief.Rmd")),
                    md5(file.path(projekt_root, "elternbrief", "elternbrief.Rmd")))
@@ -104,11 +111,13 @@ test_that("eine angepasste Vorlage ueberlagert die mitgelieferte", {
 
 test_that("ohne persoenliche Kopie bleibt die mitgelieferte Vorlage", {
   mit_benutzerordner({
-    arbeitsordner <- vorlagen_vorbereiten(file.path(projekt_root, "elternbrief"), "test")
+    arbeitsordner <- elternbrief_vorbereiten(file.path(projekt_root, "elternbrief"))
     on.exit(vorlagen_aufraeumen(arbeitsordner), add = TRUE)
 
     expect_equal(md5(file.path(arbeitsordner, "template.docx")),
-                 md5(file.path(projekt_root, "elternbrief", "template.docx")))
+                 md5(file.path(projekt_root, "vorlagen", "template.docx")))
+    expect_equal(md5(file.path(arbeitsordner, "ergebnisse.xlsx")),
+                 md5(file.path(projekt_root, "vorlagen", "ergebnisse.xlsx")))
   })
 })
 
@@ -116,16 +125,16 @@ test_that("auch der Infobrief nutzt die angepasste Vorlage", {
   mit_benutzerordner({
     ordner <- vorlagen_ordner(anlegen = TRUE)
     writeLines("meine vorlage", file.path(ordner, "template.docx"), useBytes = TRUE)
-    # table.png gehoert nicht in die Infobrief-Mappe: eine Anpassung ersetzt
-    # Vorhandenes, sie erfindet nichts dazu
-    writeLines("mein bild", file.path(ordner, "table.png"), useBytes = TRUE)
+    # die Kategorie-Texte gehoeren nicht in die Infobrief-Mappe: eine Anpassung
+    # ersetzt Vorhandenes, sie erfindet nichts dazu
+    writeLines("kein xlsx", file.path(ordner, "ergebnisse.xlsx"), useBytes = TRUE)
 
-    arbeitsordner <- vorlagen_vorbereiten(file.path(projekt_root, "infobrief"), "test")
+    arbeitsordner <- infobrief_vorbereiten(file.path(projekt_root, "infobrief"))
     on.exit(vorlagen_aufraeumen(arbeitsordner), add = TRUE)
 
     expect_equal(readLines(file.path(arbeitsordner, "template.docx"), warn = FALSE),
                  "meine vorlage")
-    expect_false(file.exists(file.path(arbeitsordner, "table.png")))
+    expect_false(file.exists(file.path(arbeitsordner, "ergebnisse.xlsx")))
   })
 })
 
@@ -134,15 +143,57 @@ test_that("eine unlesbare Kategorie-Tabelle wird nicht uebernommen", {
     ordner <- vorlagen_ordner(anlegen = TRUE)
     writeLines("kein xlsx", file.path(ordner, "ergebnisse.xlsx"), useBytes = TRUE)
 
-    arbeitsordner <- vorlagen_vorbereiten(file.path(projekt_root, "elternbrief"), "test")
+    arbeitsordner <- elternbrief_vorbereiten(file.path(projekt_root, "elternbrief"))
     on.exit(vorlagen_aufraeumen(arbeitsordner), add = TRUE)
 
     # die mitgelieferte Tabelle bleibt erhalten - ein kaputter Tabellenedit darf
     # die Briefe nicht unbrauchbar machen
     expect_equal(md5(file.path(arbeitsordner, "ergebnisse.xlsx")),
-                 md5(file.path(projekt_root, "elternbrief", "ergebnisse.xlsx")))
-    expect_true(.kategorie_tabelle_ok(file.path(projekt_root, "elternbrief", "ergebnisse.xlsx")))
+                 md5(file.path(projekt_root, "vorlagen", "ergebnisse.xlsx")))
+    expect_true(.kategorie_tabelle_ok(file.path(projekt_root, "vorlagen", "ergebnisse.xlsx")))
     expect_false(.kategorie_tabelle_ok(file.path(ordner, "ergebnisse.xlsx")))
+  })
+})
+
+test_that("fehlende mitgelieferte Vorlagen werden klar gemeldet", {
+  withr::with_tempdir({
+    # Arbeitskopie ohne den zentralen Vorlagenordner: das darf nicht still zu
+    # einem Brief ohne Vorlage fuehren
+    dir.create("elternbrief")
+    file.copy(list.files(file.path(projekt_root, "elternbrief"), full.names = TRUE),
+              "elternbrief", recursive = TRUE)
+    dir.create("infobrief")
+    file.copy(list.files(file.path(projekt_root, "infobrief"), full.names = TRUE),
+              "infobrief", recursive = TRUE)
+
+    expect_false(dir.exists("vorlagen"))
+    expect_error(elternbrief_vorbereiten(file.path(getwd(), "elternbrief")),
+                 "mitgelieferten Vorlagen fehlen")
+    expect_error(infobrief_vorbereiten(file.path(getwd(), "infobrief")),
+                 "mitgelieferten Vorlagen fehlen")
+  })
+})
+
+test_that("vorlage_status nennt die aktive Vorlage, ohne etwas anzulegen", {
+  mit_benutzerordner({
+    withr::with_dir(projekt_root, {
+      # ohne persoenliche Kopie: die mitgelieferte Vorlage, nichts wird erzeugt
+      status <- vorlage_status()
+      expect_false(status$eigen)
+      expect_equal(status$pfad, .pfad_nativ(file.path(projekt_root, "vorlagen", "template.docx")))
+      expect_true(is.na(status$zeit))
+      expect_false(dir.exists(vorlagen_ordner()))
+      expect_match(vorlage_status_text(status), "mitgelieferte Vorlage", fixed = TRUE)
+
+      # mit persoenlicher Kopie: Pfad und Datum
+      ziel <- vorlage_bereitstellen("template.docx")
+      status <- vorlage_status()
+      expect_true(status$eigen)
+      expect_equal(status$pfad, .pfad_nativ(ziel))
+      expect_match(status$zeit, "^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4} [0-9]{2}:[0-9]{2}$")
+      expect_match(vorlage_status_text(status), "Persönliche Vorlage", fixed = TRUE)
+      expect_match(vorlage_status_text(status), status$pfad, fixed = TRUE)
+    })
   })
 })
 
@@ -169,6 +220,9 @@ test_that("ein Rest im Temp-Verzeichnis verhindert die Briefe nicht", {
     dir.create("elternbrief")
     file.copy(list.files(file.path(projekt_root, "elternbrief"), full.names = TRUE),
               "elternbrief", recursive = TRUE)
+    dir.create("vorlagen")
+    file.copy(list.files(file.path(projekt_root, "vorlagen"), full.names = TRUE),
+              "vorlagen", recursive = TRUE)
     withr::local_options(ctest.outdir.fallback = file.path(getwd(), "benutzer"))
 
     # Windows gibt gesperrte Dateien manchmal erst verzoegert frei, dann bleibt
