@@ -12,3 +12,12 @@ if (!is.null(d$rangliste)) {
                     titel = d$rangliste_titel)
 }
 ```
+
+```{r, echo=FALSE, results='asis'}
+# Innenansicht: nur wenn eine Vergleichswerte-Datei vorliegt und der Schalter
+# in den Einstellungen an ist. Je Kennzahl ein eigener Absatz, Wortschatz
+# zuerst (dieselbe Reihenfolge wie in den Tabellen).
+if (!is.null(d$vergleich)) {
+  for (zeile in d$vergleich) cat("\n", zeile, "\n\n", sep = "")
+}
+```

@@ -25,6 +25,14 @@ if (!is.null(d$werte)) {
 ```
 
 ```{r, echo=FALSE, results='asis'}
+# Innenansicht: nur wenn eine Vergleichswerte-Datei vorliegt und der Schalter
+# in den Einstellungen an ist (siehe vergleich_klassen_zeilen)
+if (!is.null(d$vergleich)) {
+  cat("\n", d$vergleich, "\n", sep = "")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
 # Grussformel nur mit Namen (siehe abschluss.Rmd)
 if (!is.null(d$absender) && nzchar(trimws(d$absender))) {
   cat("Mit freundlichen Grüßen,\n\n", trimws(d$absender), "\n", sep = "")

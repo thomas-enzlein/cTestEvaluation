@@ -311,6 +311,9 @@ createFilePath <- function(filename, extension) {
        plot_diff = "nein",
        plot_gesamt = "ja",
        plot_typ = "Histogramm",
+       # Innenansicht der eigenen Schule (Vergleichswerte) - Vorgabe: aus. Die
+       # Werte stehen in Vergleichswerte_C-Test.xlsx im Vorlagenordner.
+       vergleich_anzeigen = "nein",
        # Zwei Marken des R/F-Werts in Prozent. Sie haben (noch) kein Eingabefeld
        # in der Oberflaeche, sind aber hier einstellbar. Die Kategorien der
        # Kinder haengen NICHT daran (siehe .rf_stufen).
@@ -1984,6 +1987,453 @@ brief_vorauswahl_kohorte <- function(klassen) {
   if (!nzchar(buchstabe)) buchstabe <- .brief_buchstabe(klassen)[1]
   if (length(buchstabe) == 0 || is.na(buchstabe) || !nzchar(buchstabe)) return(NULL)
   buchstabe
+}
+
+#### Vergleichswerte der Schule ####
+#
+# Eine Innenansicht: Sie sagt, wo ein Kind oder eine Klasse innerhalb des
+# eigenen Bestands liegt - nicht, ob ein Ergebnis dem Verfahrensstandard
+# entspricht. Die Werte stehen in einer eigenen Datei
+# (Vergleichswerte_C-Test.xlsx), die einmalig aus den vorhandenen Daten erzeugt
+# wird; die App rechnet sie nie selbst aus. Fehlt die Datei, gibt es keine
+# Vergleichsaussage. Angezeigt wird nur mit eingeschaltetem Schalter
+# (Einstellungen: vergleich_anzeigen).
+
+.vergleich_dateiname <- "Vergleichswerte_C-Test.xlsx"
+
+# Messfehler eines Einzelwerts in Prozentpunkten (eigene Analyse: SD ~21 pp,
+# Reliabilitaet ~0,84 -> SEM ~8,5 pp, 95 % also rund +/-17 pp). Bei Mittelwerten
+# wird er durch die Wurzel der Kinderzahl geteilt; fuer die Entwicklung kommt er
+# aus dem Rest_SD der Referenzdatei (Kohorten sind Mittelwerte).
+.vergleich_sem <- c("R/F" = 8.5, "WE" = 7.5)
+
+# Mindestgroessen: darunter keine Aussage, darunter nur Viertel-Baender
+.vergleich_min_kinder <- 30
+.vergleich_min_dezile <- 100
+.vergleich_min_klassen <- 8
+# Klassen mit weniger Kindern werden nicht verglichen - dieselbe Grenze wie im
+# Generator: so kleine Klassen kommen auch in die Referenz nicht hinein
+.vergleich_min_klasse_kinder <- 10
+
+# Pfad der Referenzdatei: persoenliche Kopie zuerst, sonst die mitgelieferte
+.vergleich_datei <- function(datei = .vergleich_dateiname) {
+  eigen <- .pfad_nativ(file.path(vorlagen_ordner(), datei))
+  if (file.exists(eigen)) return(eigen)
+  geliefert <- vorlagen_quelle(datei)
+  if (file.exists(geliefert)) return(.pfad_nativ(geliefert))
+  NULL
+}
+
+# Ein Arbeitsblatt als data.frame (Spalten technisch benannt), NULL bei Fehler
+.vergleich_blatt <- function(pfad, blatt) {
+  tryCatch({
+    d <- readxl::read_xlsx(pfad, sheet = blatt)
+    d <- as.data.frame(janitor::clean_names(d), stringsAsFactors = FALSE)
+    d <- d[rowSums(!is.na(d)) > 0, , drop = FALSE]
+    if (nrow(d) == 0) NULL else d
+  }, error = function(e) NULL)
+}
+
+# Referenz einlesen. Rueckgabe: Liste (kinder, klassen, entwicklung, info, datei)
+# oder NULL, wenn keine Datei da oder nicht lesbar ist.
+vergleich_referenz <- function(pfad = .vergleich_datei()) {
+  if (is.null(pfad) || !file.exists(pfad)) return(NULL)
+  blaetter <- tryCatch(readxl::excel_sheets(pfad), error = function(e) character(0))
+  if (length(blaetter) == 0) return(NULL)
+
+  lesen <- function(name) if (name %in% blaetter) .vergleich_blatt(pfad, name) else NULL
+  ref <- list(kinder = lesen("Kinder"), klassen = lesen("Klassen"),
+              entwicklung = lesen("Entwicklung"), info = lesen("Info"),
+              datei = pfad)
+  if (all(vapply(ref[c("kinder", "klassen", "entwicklung")], is.null, logical(1)))) {
+    return(NULL)
+  }
+  ref
+}
+
+# Grenzen einer Bezugsgruppe: Liste(grenzen = p10..p90, n, zeile) oder NULL
+.vergleich_gruppe <- function(ref, ebene, stufe, kennzahl, lagemass = NULL) {
+  if (is.null(ref)) return(NULL)
+  d <- ref[[ebene]]
+  if (is.null(d) || !all(c("klassenstufe", "kennzahl") %in% names(d))) return(NULL)
+
+  idx <- which(as.character(d$klassenstufe) == as.character(stufe) &
+                 toupper(as.character(d$kennzahl)) == toupper(kennzahl))
+  if (!is.null(lagemass) && "lagemass" %in% names(d)) {
+    idx <- idx[grepl(lagemass, as.character(d$lagemass[idx]), ignore.case = TRUE)]
+  }
+  if (length(idx) == 0) return(NULL)
+
+  zeile <- d[idx[1], , drop = FALSE]
+  namen <- paste0("p", c(10, 25, 50, 75, 90))
+  grenzen <- vapply(namen, function(spalte) {
+    if (!(spalte %in% names(zeile))) return(NA_real_)
+    suppressWarnings(as.numeric(zeile[[spalte]][1]))
+  }, numeric(1))
+  names(grenzen) <- namen
+  if (all(is.na(grenzen))) return(NULL)
+
+  n <- NA_real_
+  for (spalte in c("n", "n_klassen")) {
+    if (spalte %in% names(zeile)) {
+      n <- suppressWarnings(as.numeric(zeile[[spalte]][1]))
+      if (!is.na(n)) break
+    }
+  }
+  list(grenzen = grenzen, n = n, zeile = zeile)
+}
+
+# Perzentil eines Werts innerhalb der Schnittpunkte (stueckweise linear;
+# ausserhalb wird bis 0 bzw. 100 fortgeschrieben).
+.vergleich_perzentil <- function(wert, grenzen) {
+  if (is.na(wert)) return(NA_real_)
+  vorhanden <- !is.na(grenzen)
+  if (sum(vorhanden) < 2) return(NA_real_)
+  xs <- as.numeric(grenzen[vorhanden])
+  ps <- as.numeric(sub("^p", "", names(grenzen)[vorhanden]))
+  if (wert <= xs[1]) {
+    if (xs[1] <= 0) return(ps[1])
+    return(max(0, ps[1] * wert / xs[1]))
+  }
+  if (wert >= xs[length(xs)]) {
+    letzte <- length(xs)
+    if (xs[letzte] >= 100) return(ps[letzte])
+    spanne <- xs[letzte] - xs[letzte - 1]
+    if (spanne <= 0) return(ps[letzte])
+    return(min(100, ps[letzte] + (100 - ps[letzte]) *
+                 (wert - xs[letzte]) / spanne))
+  }
+  suppressWarnings(stats::approx(xs, ps, xout = wert, ties = mean, rule = 2)$y)
+}
+
+# Urteil zu einem Wert. art: "kind" (Einzelwert) oder "klasse" (Klassenmittel
+# oder -median). sem ist der Messfehler des Werts. Die Entwicklung hat ein
+# eigenes Urteil (vergleich_entwicklung_urteil), weil sie am Startniveau haengt.
+vergleich_urteil <- function(ref, wert, kennzahl, art = c("kind", "klasse"),
+                             stufe = NULL, lagemass = NULL, n_kinder = NA_real_,
+                             sem = NA_real_) {
+  art <- match.arg(art)
+  if (is.null(ref) || length(wert) != 1 || is.na(wert)) return(NULL)
+
+  ebene <- if (art == "kind") "kinder" else "klassen"
+  gruppe <- .vergleich_gruppe(ref, ebene, stufe, kennzahl, lagemass)
+  if (is.null(gruppe)) return(NULL)
+
+  # Messfehler: beim Einzelwert der feste SEM, bei Klassen geteilt durch die
+  # Wurzel der Kinderzahl (Mittelwerte sind genauer)
+  if (is.na(sem)) {
+    grund <- .vergleich_sem[kennzahl]
+    sem <- if (is.na(grund)) NA_real_ else unname(grund)
+    if (art == "klasse" && !is.na(n_kinder) && n_kinder > 0) {
+      sem <- sem / sqrt(n_kinder)
+    }
+  }
+
+  # Mindestgroessen
+  if (art == "klasse") {
+    if (is.na(gruppe$n) || gruppe$n < .vergleich_min_klassen) return(NULL)
+  } else {
+    if (is.na(gruppe$n) || gruppe$n < .vergleich_min_kinder) return(NULL)
+  }
+
+  grenzen <- gruppe$grenzen
+  dezile <- !is.na(grenzen["p10"]) && !is.na(grenzen["p90"])
+  if (art != "kind" || !dezile) {
+    unten <- grenzen["p25"]; oben <- grenzen["p75"]
+  } else {
+    unten <- grenzen["p10"]; oben <- grenzen["p90"]
+  }
+  if (is.na(unten) || is.na(oben)) return(NULL)
+
+  # oberes Band nur, wenn es sich abgrenzen laesst (bei WE sitzt der p90 am
+  # Maximum von 100 %)
+  oben_abgrenzbar <- is.finite(oben) && oben < 100
+
+  band <- if (wert < unten) {
+    if (art == "kind") { if (dezile) "untere 10 %" else "unteres Viertel" } else
+      "unteres Viertel"
+  } else if (wert > oben) {
+    if (art == "kind" && oben_abgrenzbar) {
+      if (dezile) "obere 10 %" else "oberes Viertel"
+    } else if (art == "kind") {
+      "oberer Bereich (nicht abgrenzbar)"
+    } else {
+      "oberes Viertel"
+    }
+  } else {
+    if (art == "kind") { if (dezile) "im Jahrgangsbereich" else "im mittleren Bereich" } else
+      "Mittelfeld"
+  }
+
+  rang <- c(von = NA_real_, bis = NA_real_)
+  if (!is.na(sem)) {
+    rang <- sort(c(.vergleich_perzentil(wert - sem, grenzen),
+                   .vergleich_perzentil(wert + sem, grenzen)))
+    rang <- round(pmax(0, pmin(100, rang)))
+  } else {
+    rang <- rep(round(.vergleich_perzentil(wert, grenzen)), 2)
+  }
+
+  list(art = art, band = unname(band), rang = rang, grenzen = grenzen,
+       n = gruppe$n, dezile = dezile, wert = wert, kennzahl = kennzahl,
+       lagemass = lagemass, stufe = stufe, sem = sem)
+}
+
+# Kurzform fuer die Tabelle: "obere 10 % (Rang 3-12 %)"
+vergleich_kurz <- function(urteil) {
+  if (is.null(urteil)) return(NA_character_)
+  rang <- urteil$rang
+  if (any(is.na(rang))) return(urteil$band)
+  if (rang[1] == rang[2]) return(paste0(urteil$band, " (Rang ", rang[1], " %)"))
+  paste0(urteil$band, " (Rang ", rang[1], "\u2013", rang[2], " %)")
+}
+
+# Satz fuer Statistik-Tab und Briefe
+vergleich_satz <- function(urteil, was = NULL) {
+  if (is.null(urteil)) return(NULL)
+  kennzahl <- if (is.null(was)) urteil$kennzahl else was
+  if (isTRUE(urteil$art == "entwicklung")) return(vergleich_entwicklung_satz(urteil, kennzahl))
+  if (urteil$art == "kind") {
+    return(paste0("Vergleichswert ", kennzahl, ": ", vergleich_kurz(urteil), "."))
+  }
+  if (urteil$art == "klasse") {
+    lage <- if (isTRUE(urteil$lagemass == "Median")) "Klassen-Median" else "Klassenmittel"
+    return(paste0(lage, " ", kennzahl, ": ", vergleich_kurz(urteil),
+                  " im Vergleich zu den ", urteil$stufe, ". Klassen dieser Schule (n = ",
+                  urteil$n, ")."))
+  }
+  NULL
+}
+
+#### Entwicklung: erwartete Entwicklung aus dem Startniveau ####
+#
+# Die Entwicklung haengt am Ausgangsniveau: wer in der 5 schon weit oben steht,
+# kann sich kaum verbessern. Deshalb wird nicht die Veraenderung allein
+# bewertet, sondern die Abweichung von der Erwartung
+#   erwartet = Erwartung_a + Erwartung_b * Startniveau
+# (Startniveau = Mittel der 5. Klasse der Kohorte). Die Erwartung ist gedeckelt
+# auf den verbleibenden Raum bis 100 %.
+#
+# Das Band kommt aus der Streuung der Kohortenabweichungen dieser Schule
+# (Kohorten_SD): innerhalb einer Standardabweichung gilt die Entwicklung als
+# ueblich. Das Rangintervall (Rest_SD/wurzel(n), also der Fehler des Mittels)
+# entscheidet nur ueber die Wortwahl: beruehrt es die Bandgrenze, heisst es
+# "leicht", liegt es ganz ausserhalb, "deutlich".
+
+# Kennzahlen der Erwartung aus dem Blatt "Entwicklung" lesen
+.vergleich_erwartung <- function(ref, kennzahl) {
+  if (is.null(ref) || is.null(ref$entwicklung)) return(NULL)
+  d <- ref$entwicklung
+  if (!all(c("klassenstufe", "kennzahl") %in% names(d))) return(NULL)
+  idx <- which(toupper(as.character(d$kennzahl)) == toupper(kennzahl))
+  if (length(idx) == 0) return(NULL)
+  z <- d[idx[1], , drop = FALSE]
+  # Spaltennamen tolerant suchen (die App liest die Datei klein geschrieben ein,
+  # eine von Hand gepflegte Datei kann anders schreiben)
+  hol <- function(name) {
+    i <- which(tolower(names(z)) == tolower(name))
+    if (length(i) == 0) return(NA_real_)
+    suppressWarnings(as.numeric(z[[i[1]]][1]))
+  }
+  a <- hol("erwartung_a")
+  b <- hol("erwartung_b")
+  if (is.na(a) || is.na(b)) return(NULL)
+  list(a = a, b = b, rest_sd = hol("rest_sd"), kohorten_sd = hol("kohorten_sd"),
+       n_kohorten = hol("n_kohorten"), n = hol("n"))
+}
+
+# Bewertung der Entwicklung einer Kohorte. start und delta sind Mittelwerte der
+# Kohorte, n_kinder die Zahl der Kinder dahinter.
+vergleich_entwicklung_urteil <- function(ref, start, delta, kennzahl, n_kinder = NA_real_) {
+  if (is.null(ref) || length(start) != 1 || length(delta) != 1) return(NULL)
+  if (is.na(start) || is.na(delta)) return(NULL)
+  e <- .vergleich_erwartung(ref, kennzahl)
+  if (is.null(e) || is.na(e$kohorten_sd) || e$kohorten_sd <= 0) return(NULL)
+
+  erwartet <- e$a + e$b * start
+  # nicht mehr als der verbleibende Raum bis 100 %
+  erwartet <- min(erwartet, max(0, 100 - start))
+  abweichung <- delta - erwartet
+  sem <- if (!is.na(e$rest_sd) && !is.na(n_kinder) && n_kinder > 0) {
+    e$rest_sd / sqrt(n_kinder)
+  } else {
+    NA_real_
+  }
+  intervall <- if (is.na(sem)) c(abweichung, abweichung) else
+    c(abweichung - sem, abweichung + sem)
+  # Wortwahl: liegt das Rangintervall ganz im Band, ist die Entwicklung ueblich.
+  # Liegt es ganz ausserhalb, "deutlich"; beruehrt es die Grenze, "leicht".
+  oben <- e$kohorten_sd
+  unten <- -e$kohorten_sd
+  bewertung <- if (intervall[1] >= unten && intervall[2] <= oben) {
+    "im üblichen Bereich"
+  } else if (intervall[1] > oben) {
+    "deutlich über dem Üblichen"
+  } else if (intervall[2] < unten) {
+    "deutlich unter dem Üblichen"
+  } else if (intervall[1] < unten) {
+    "leicht unter dem Üblichen"
+  } else {
+    "leicht über dem Üblichen"
+  }
+
+  list(art = "entwicklung", kennzahl = kennzahl, start = start, delta = delta,
+       erwartet = erwartet, abweichung = abweichung, bewertung = bewertung,
+       band = bewertung, sd_kohorten = e$kohorten_sd, sem = sem, n = e$n,
+       n_kohorten = e$n_kohorten)
+}
+
+# Satz fuer den Entwicklungsbrief (je Kohorte und Kennzahl)
+vergleich_entwicklung_satz <- function(urteil, was = NULL) {
+  if (is.null(urteil) || !isTRUE(urteil$art == "entwicklung")) return(NULL)
+  kennzahl <- if (is.null(was)) urteil$kennzahl else was
+  paste0("Die Kohorte startete bei ", de_zahl(urteil$start), " % (", kennzahl,
+         ") und erreichte einen mittleren Zuwachs von ",
+         de_vz(urteil$delta), " Punkten \u2013 üblich für dieses Niveau sind etwa ",
+         de_vz(urteil$erwartet), "; die Entwicklung liegt ", urteil$bewertung, ".")
+}
+
+# Zeile(n) fuer den Statistik-Tab. urteile ist eine benannte Liste von
+# Entwicklung-Urteilen (Name = Beschriftung wie "5c->6c"; ohne Namen steht die
+# Zeile fuer die Gesamtuebersicht).
+vergleich_entwicklung_zeile <- function(urteile, kennzahl) {
+  if (length(urteile) == 0) return(NULL)
+  namen <- names(urteile)
+  behalten <- !vapply(urteile, is.null, logical(1))
+  urteile <- urteile[behalten]
+  namen <- if (is.null(namen)) rep("", length(urteile)) else namen[behalten]
+  if (length(urteile) == 0) return(NULL)
+
+  teile <- vapply(seq_along(urteile), function(i) {
+    u <- urteile[[i]]
+    text <- paste0(de_vz(u$delta), " (erwartet ", de_vz(u$erwartet), ")")
+    if (!is.na(namen[i]) && nzchar(namen[i])) text <- paste0(text, "; ", namen[i])
+    text
+  }, character(1))
+  bewertungen <- unique(vapply(urteile, function(u) u$bewertung, character(1)))
+  paste0("Mittlere Entwicklung ", kennzahl, " (5 \u2192 6): ",
+         paste(teile, collapse = ", "),
+         if (length(bewertungen) == 1) paste0(" \u2013 ", bewertungen) else "")
+}
+
+# Zeilen fuer den Statistik-Tab: je Klasse der Median-Vergleich (der Median ist
+# robuster als der Mittelwert und steht dort schon). kennzahl waehlt die
+# Kennzahl; ohne Angabe kommen beide (R/F zuerst).
+vergleich_klassen_zeilen <- function(df, ref, kennzahl = NULL) {
+  if (is.null(ref) || is.null(df) || nrow(df) == 0) return(character(0))
+  if (!all(c("Klasse", "R/F-%", "WE-%") %in% colnames(df))) return(character(0))
+  kennzahlen <- if (is.null(kennzahl)) c("R/F", "WE") else kennzahl
+
+  zeilen <- character(0)
+  for (klasse in sort(unique(as.character(df$Klasse)))) {
+    teil <- df[as.character(df$Klasse) == klasse, , drop = FALSE]
+    stufe <- suppressWarnings(as.numeric(gsub("[^0-9]", "", klasse)))
+    if (is.na(stufe)) next
+    for (kennzahl in kennzahlen) {
+      werte <- suppressWarnings(as.numeric(teil[[paste0(kennzahl, "-%")]]))
+      werte <- werte[!is.na(werte)]
+      if (length(werte) < .vergleich_min_klasse_kinder) next
+      urteil <- vergleich_urteil(ref, stats::median(werte), kennzahl, "klasse",
+                                 stufe = as.character(stufe), lagemass = "Median",
+                                 n_kinder = length(werte))
+      if (is.null(urteil)) next
+      zeilen <- c(zeilen, paste0(klasse, " (n = ", length(werte), "): ", kennzahl,
+                                 "-Median ", format(round(stats::median(werte), 1),
+                                                    decimal.mark = ","),
+                                 " % \u2192 ", vergleich_kurz(urteil),
+                                 " \u00b7 Bezug: ", stufe, ". Klassen dieser Schule (n = ",
+                                 urteil$n, ")"))
+    }
+  }
+  zeilen
+}
+
+# Zeilen fuer den Statistik-Tab: mittlere Entwicklung gegen die Erwartung.
+# gematcht ist die Zuordnung (cohort_gematcht). pro_kohorte = FALSE ergibt eine
+# Zeile ueber alle zugeordneten Kinder, TRUE eine je Kohorte (Buchstabe).
+vergleich_entwicklung_zeilen <- function(gematcht, ref, kennzahl, pro_kohorte = FALSE) {
+  if (is.null(ref) || is.null(gematcht) || !is.data.frame(gematcht) ||
+      nrow(gematcht) == 0) {
+    return(character(0))
+  }
+  spalte_alt <- paste0(if (kennzahl == "R/F") "RF" else "WE", "_Alt")
+  spalte_neu <- paste0(if (kennzahl == "R/F") "RF" else "WE", "_Neu")
+  if (!all(c(spalte_alt, spalte_neu) %in% names(gematcht))) return(character(0))
+
+  start <- suppressWarnings(as.numeric(gematcht[[spalte_alt]]))
+  ziel <- suppressWarnings(as.numeric(gematcht[[spalte_neu]]))
+  ok <- !is.na(start) & !is.na(ziel)
+  if (!any(ok)) return(character(0))
+
+  urteil_aus <- function(start_v, ziel_v) {
+    vergleich_entwicklung_urteil(ref, mean(start_v), mean(ziel_v - start_v), kennzahl,
+                                 n_kinder = length(start_v))
+  }
+
+  if (!pro_kohorte) {
+    u <- urteil_aus(start[ok], ziel[ok])
+    if (is.null(u)) return(character(0))
+    # leerer Name = Zeile fuer die Gesamtuebersicht (list("" = u) ist in R nicht erlaubt)
+    zeile <- vergleich_entwicklung_zeile(stats::setNames(list(u), ""), kennzahl)
+    return(if (is.null(zeile)) character(0) else zeile)
+  }
+
+  # je Kohorte (Buchstabe), Beschriftung wie im Brief (5c -> 6c)
+  klasse_alt <- as.character(gematcht$Klasse_Alt)
+  klasse_neu <- as.character(gematcht$Klasse_Neu)
+  klasse <- ifelse(is.na(klasse_neu) | !nzchar(klasse_neu), klasse_alt, klasse_neu)
+  buchstabe <- tolower(gsub("[^A-Za-z]", "", klasse))
+  urteile <- list()
+  for (b in sort(unique(buchstabe[ok]))) {
+    idx <- which(ok & buchstabe == b)
+    if (length(idx) < .vergleich_min_klasse_kinder) next
+    u <- urteil_aus(start[idx], ziel[idx])
+    if (is.null(u)) next
+    beschriftung <- paste0(unique(klasse_alt[idx])[1], "\u2192", unique(klasse_neu[idx])[1])
+    if (any(is.na(c(unique(klasse_alt[idx])[1], unique(klasse_neu[idx])[1])))) {
+      beschriftung <- unique(klasse[idx])[1]
+    }
+    urteile[[beschriftung]] <- u
+  }
+  if (length(urteile) == 0) return(character(0))
+  zeile <- vergleich_entwicklung_zeile(urteile, kennzahl)
+  if (is.null(zeile)) character(0) else zeile
+}
+
+# Zwei Anzeigespalten fuer die Uebersichtstabelle (Innenansicht je Kind).
+# Rueckgabe NULL, wenn nichts zu vergleichen ist.
+vergleich_spalten <- function(df, ref) {
+  if (is.null(ref) || is.null(df) || nrow(df) == 0) return(NULL)
+  if (!all(c("Klasse", "R/F-%", "WE-%") %in% colnames(df))) return(NULL)
+
+  spalte <- function(kennzahl, werte_spalte) {
+    werte <- suppressWarnings(as.numeric(df[[werte_spalte]]))
+    klassen <- as.character(df$Klasse)
+    werte_urteil <- vapply(seq_along(werte), function(i) {
+      stufe <- suppressWarnings(as.numeric(gsub("[^0-9]", "", klassen[i])))
+      u <- vergleich_urteil(ref, werte[i], kennzahl, "kind", stufe = as.character(stufe))
+      if (is.null(u)) "" else vergleich_kurz(u)
+    }, character(1))
+    werte_urteil
+  }
+  data.frame("Vergleich R/F" = spalte("R/F", "R/F-%"),
+             "Vergleich WE" = spalte("WE", "WE-%"),
+             check.names = FALSE, stringsAsFactors = FALSE)
+}
+
+# Zeitraum und Quelle aus dem Info-Blatt der Referenz (fuer die Anzeige)
+vergleich_zeitraum <- function(ref) {
+  if (is.null(ref) || is.null(ref$info)) return(NA_character_)
+  info <- ref$info
+  if (!all(c("feld", "wert") %in% names(info))) return(NA_character_)
+  hole <- function(name) {
+    i <- which(tolower(trimws(as.character(info$feld))) == tolower(name))
+    if (length(i) == 0) NA_character_ else as.character(info$wert[i[1]])
+  }
+  von <- hole("Zeitraum von")
+  bis <- hole("Zeitraum bis")
+  if (is.na(von) && is.na(bis)) return(NA_character_)
+  paste0(von, "\u2013", bis)
 }
 
 create_letters <- function(df, lehrername, signatur = "", qrLink = NULL,

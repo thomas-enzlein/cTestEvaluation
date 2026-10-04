@@ -15,6 +15,9 @@ test_that("die UI baut sich auf und enthaelt alle zentralen Elemente", {
   # Eingaben und Ausgaben in Statistik und Elternbrief
   for (id in c("histWE", "histRF", "statsWE", "statsRF", "cbWEDiff", "cbAllCombined",
                "siPlotType", "lehrername", "signatur", "qrLink", "btBrief",
+               # Innenansicht: Klassenvergleich im Statistik-Tab, Schalter und
+               # Hinweis im Abschnitt Vorlagen und Einstellungen
+               "vergleichKlasse", "cbVergleich", "vergleichwerteHinweis",
                # Infobrief und Stand-Brief: Briefart, Absender, Knopf
                "siBrieftyp", "infoAbsender", "btInfobrief", "infobriefHinweis",
                # Auswahl der Klassen fuer den Infobrief

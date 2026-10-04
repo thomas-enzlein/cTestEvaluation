@@ -32,3 +32,6 @@ template_1.docx
 analyse/
 Rplots.pdf
 literatur/
+# Nebenprodukt: includeMarkdown() legt beim Laden der App eine HTML-Fassung der
+# Anleitung neben die Markdown-Datei. Gehoert nicht ins Repository.
+helpfiles/anleitung.html

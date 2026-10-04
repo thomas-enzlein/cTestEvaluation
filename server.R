@@ -53,6 +53,8 @@ server <- function(input, output, session) {
   updateCheckboxInput(session, "cbAllCombined",
                       value = .als_wahr(einstellungen_start$plot_gesamt))
   updateSelectInput(session, "siPlotType", selected = einstellungen_start$plot_typ)
+  updateCheckboxInput(session, "cbVergleich",
+                      value = .als_wahr(einstellungen_start$vergleich_anzeigen))
 
   # Werte der Oberflaeche, die gespeichert werden
   einstellungen_werte <- reactive({
@@ -66,7 +68,8 @@ server <- function(input, output, session) {
          numitems = wert(input$numItems, "40"),
          plot_diff = if (isTRUE(input$cbWEDiff)) "ja" else "nein",
          plot_gesamt = if (isTRUE(input$cbAllCombined)) "ja" else "nein",
-         plot_typ = wert(input$siPlotType, "Histogramm"))
+         plot_typ = wert(input$siPlotType, "Histogramm"),
+         vergleich_anzeigen = if (isTRUE(input$cbVergleich)) "ja" else "nein")
   })
   einstellungen_verzoegert <- debounce(einstellungen_werte, 1000)
   einstellungen_gespeichert <- reactiveVal(NULL)
@@ -78,6 +81,22 @@ server <- function(input, output, session) {
       einstellungen_gespeichert(stand)
     }
   })
+
+  #### Vergleichswerte der Schule (Innenansicht) ####
+  # Die App rechnet die Vergleichswerte nicht selbst aus: sie liest die Datei
+  # Vergleichswerte_C-Test.xlsx aus dem Vorlagenordner (erzeugt von
+  # analyse/vergleich_erzeugen.R) und zeigt sie nur, wenn der Schalter an ist.
+  vergleich_ref <- reactive({
+    tryCatch(vergleich_referenz(), error = function(e) NULL)
+  })
+  vergleich_an <- reactive(isTRUE(.als_wahr(einstellungen_werte()$vergleich_anzeigen)))
+  vergleich_aktiv <- reactive(vergleich_an() && !is.null(vergleich_ref()))
+  # zugeordnete Kinder der beiden gewaehlten Stufen (fuer die Entwicklung)
+  gematcht_oder_null <- function() {
+    k <- tryCatch(cohort_oder_null(), error = function(e) NULL)
+    if (is.null(k)) return(NULL)
+    tryCatch(cohort_gematcht(k), error = function(e) NULL)
+  }
   
   #### Anzahl der Testitems aendern 
   observeEvent(input$numItems, {
@@ -86,9 +105,17 @@ server <- function(input, output, session) {
   
   
   #### Uebersichtstabelle ####
-  observeEvent(rv$df, {
+  # reagiert auch auf den Schalter der Innenansicht, damit die Spalten sofort
+  # erscheinen bzw. verschwinden
+  observeEvent(list(rv$df, vergleich_aktiv()), {
     # Itemzahl nicht anzeigen: sie gehoert in die tsv, nicht in die Ansicht
     anzeige <- rv$df[, setdiff(colnames(rv$df), "Items"), drop = FALSE]
+    # Innenansicht je Kind (nur Anzeige, nur mit eingeschaltetem Schalter)
+    if (vergleich_aktiv()) {
+      spalten <- tryCatch(vergleich_spalten(rv$df, vergleich_ref()),
+                          error = function(e) NULL)
+      if (!is.null(spalten)) anzeige <- cbind(anzeige, spalten)
+    }
     dt <- datatable(anzeige,
                     selection = "multiple",
                     options = list(searching = TRUE,
@@ -382,6 +409,29 @@ server <- function(input, output, session) {
   output$vorlageStatus <- renderUI({
     vorlagen_stand()
     helpText(vorlage_status_text())
+  })
+
+  # Vergleichswerte: welche Datei gilt, und was sie enthaelt (Kurzfassung)
+  output$vergleichwerteHinweis <- renderUI({
+    if (!vergleich_an()) return(NULL)
+    ref <- vergleich_ref()
+    if (is.null(ref)) {
+      return(helpText(paste0("Keine Vergleichswerte-Datei gefunden. Erwartet wird '",
+                             .vergleich_dateiname, "' unter '", vorlagen_ordner(),
+                             "' (erzeugen mit analyse/vergleich_erzeugen.R).")))
+    }
+    zeitraum <- vergleich_zeitraum(ref)
+    teile <- c(paste0("Vergleichswerte: ", basename(ref$datei)))
+    if (!is.na(zeitraum)) teile <- c(teile, paste0("Zeitraum ", zeitraum))
+    if (!is.null(ref$kinder)) {
+      teile <- c(teile, paste0(nrow(ref$kinder), " Kennzahlen-Zeilen"))
+    }
+    helpText(paste0(paste(teile, collapse = " \u00b7 "),
+                    ". Innenansicht der eigenen Schule - keine Norm. Die Bänder ",
+                    "entstehen aus den Schnittpunkten der Datei (unteres Viertel / ",
+                    "Mittelfeld / oberes Viertel, bei genug Daten untere und obere ",
+                    "10 %). Angezeigt werden sie im Statistik-Tab, in der ",
+                    "Übersichtstabelle als Spalte und im Infobrief für das Kollegium."))
   })
 
   # Datei bzw. Ordner oeffnen; Fehler (z. B. fehlende Schreibrechte) werden
@@ -802,6 +852,7 @@ server <- function(input, output, session) {
         list(ok = TRUE,
              wert = create_infobrief(k,
                                      absender = input$infoAbsender,
+                                     vergleich = if(vergleich_aktiv()) vergleich_ref() else NULL,
                                      fortschritt = function(anteil, text) {
                                        setProgress(value = anteil, detail = text)
                                      }))
@@ -842,6 +893,7 @@ server <- function(input, output, session) {
       ergebnis <- tryCatch({
         list(ok = TRUE,
              wert = create_standbrief(daten, absender = input$infoAbsender,
+                                      vergleich = if(vergleich_aktiv()) vergleich_ref() else NULL,
                                       fortschritt = function(anteil, text) {
                                         setProgress(value = anteil, detail = text)
                                       }))
@@ -970,6 +1022,35 @@ server <- function(input, output, session) {
         )
       }
     })
+
+    # Innenansicht oben bei Mittel/Median (nur mit Schalter und vorhandener
+    # Vergleichswerte-Datei): Klassenvergleich der Kennzahl und - wenn ein
+    # Stufenpaar zugeordnet ist - die mittlere Entwicklung gegen die Erwartung.
+    # Je Kasten des Diagramms nur die eigene Kennzahl, damit es nicht zu viel wird.
+    vergleich_block <- function(kennzahl) {
+      if(!vergleich_aktiv()) return(NULL)
+      ref <- vergleich_ref()
+      zeilen <- tryCatch(vergleich_klassen_zeilen(rv$df, ref, kennzahl = kennzahl),
+                         error = function(e) character(0))
+      entwicklung <- tryCatch(
+        vergleich_entwicklung_zeilen(gematcht_oder_null(), ref, kennzahl,
+                                     pro_kohorte = !isTRUE(input$cbAllCombined)),
+        error = function(e) character(0))
+      if(length(zeilen) == 0 && length(entwicklung) == 0) return(NULL)
+      tagList(
+        if(length(zeilen) > 0) div(
+          h4(paste0("Vergleich mit den ", kennzahl, "-Werten der Klassen dieser Schule")),
+          style = "margin-left:15px; margin-right:15px"),
+        if(length(zeilen) > 0)
+          div(lapply(zeilen, function(z) div(z, style = "margin-left:15px")),
+              style = "margin-right:15px"),
+        if(length(entwicklung) > 0)
+          div(lapply(entwicklung, function(z) div(z, style = "margin-left:15px")),
+              style = "margin-right:15px; margin-top:6px; margin-bottom:10px")
+      )
+    }
+    output$vergleichKlasse <- renderUI(vergleich_block("R/F"))
+    output$vergleichKlasseWE <- renderUI(vergleich_block("WE"))
 
     # Vergleichstabelle je Kind (nur wenn zwei Stufen mit Zuordnung vorliegen)
     output$vergleichTabHinweis <- renderUI({

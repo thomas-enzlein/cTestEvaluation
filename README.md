@@ -45,6 +45,11 @@ A left-hand menu (illustrated within the app) allows users to access different f
 - Statistics: distributions of the WE and R/F values, mean ± standard deviation and median
   per class, the development of two year levels (`Entwicklung` and `Verlauf`) and the
   table `Vergleich je Kind (zwei Stufen)` with one row per student.
+- Vergleichswerte (optional, off by default): compares a class or a student with the school's own
+  distribution (`Vergleichswerte_C-Test.xlsx`, no names, no individual values - only quantiles),
+  shown in the statistics tab, as extra columns in the evaluation table and in the teacher
+  infobrief. It is an internal view for colleagues, explicitly not a norm, and never part of the
+  parent letters.
 - Infobrief: two letter types - `Stand je Klasse` (current status of every loaded class, no
   comparison needed) and the development letter over two year levels, including the review of
   the student matching (see below).
@@ -86,6 +91,28 @@ Before the parent letters or the Infobrief are rendered, the current data set is
 in the output folder, so a forgotten `speichern` no longer leaves only Word files behind (the
 tsv is also the only file that carries the item count per student).
 
+## Reference values of the school (internal comparison)
+
+`Vergleichswerte_C-Test.xlsx` in the template folder holds quantiles of the school's own data
+(sheets `Info`, `Kinder`, `Klassen`, `Entwicklung`) - no names, no individual values. The app only
+reads that file and shows the comparison when the switch `Vergleichswerte der Schule anzeigen` is
+on (default: off). The file is created by a tool in this repository, not by the app:
+
+```
+Rscript werkzeuge/vergleich_erzeugen.R [data folder] [school type]
+```
+
+The data folder is scanned recursively for tsv files (default: the app's output folder
+`Dokumente\C-Test Auswertung`), the school type is metadata only. The tool removes exercise files,
+duplicate files (md5, and files fully contained in another one) and duplicate children (one row per
+child, class and year - the row with values wins), pairs the two year levels with the same matching
+as the development letter (per cohort and year pair, via the app functions `build_cohort` and
+`cohort_gematcht`), and writes the quantiles (p10/p25/p50/p75/p90) per year level, indicator, and
+reference level. For the development 5 → 6 it also fits the expected change from the starting level
+(`Erwartung_a + Erwartung_b * start`), the residual spread (`Rest_SD`) and the spread of the cohort
+deviations (`Kohorten_SD`). Running it again replaces the file, so the reference grows with every
+test round. `werkzeuge/` is not part of the shipped app.
+
 ## Evaluation and Review
 
 In the "Add Student" subsection, educators can swiftly enter and compile student data, setting up the number of test items and adjusting class settings as required.
@@ -112,9 +139,11 @@ The `Infobrief` tab offers two letter types:
   and are applied again automatically on the next run. The letter reports per class letter
   `n (mit Werten)`, `WE % (Mittel ± SD)` and `R/F % (Mittel ± SD)`, the students below the lower
   norm range including the comparison with the previous year, the largest improvements and the
-  weakest development. This is followed by the page `Hinweise` (new students, missing previous
-  values, unconfirmed suggestions, students who did not take part) and the appendix
-  `Vergleich je Kind`.
+  weakest development. This is followed - when the reference values are switched on - by one
+  paragraph per indicator (vocabulary first) with the development compared to what is usual for
+  that starting level, and by the appendix `Vergleich je Kind`. Students without a previous value
+  are not listed in a separate block any more; the `Hinweis` column of the comparison table in the
+  `Statistik` tab names them.
 
 The development plot in the `Statistik` tab uses the same matching. When saving, the comparison
 table is additionally written as sheet `Vergleich` in the Excel export and as an appendix in the

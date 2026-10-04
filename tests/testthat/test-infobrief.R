@@ -291,12 +291,17 @@ test_that("ein echter Infobrief entsteht als docx mit Tabellen und Farben", {
     withr::local_options(ctest.outdir.fallback = file.path(getwd(), "benutzer"))
 
     k <- infobrief_fixture()
+    # Innenansicht: die mitgelieferte Vergleichswerte-Datei liegt im Testordner
+    # unter vorlagen/ - damit kommen die Entwicklungs-Absaetze in den Brief.
+    referenz <- vergleich_referenz()
+    expect_false(is.null(referenz))
     ergebnis <- NULL
     # Paket L: der Fortschritt wird waehrend des Renderns gemeldet
     meldungen <- list()
     utils::capture.output(
       suppressMessages(
         ergebnis <- create_infobrief(k, klassenleitung = "6c", absender = "Test, Tina",
+                                     vergleich = referenz,
                                      fortschritt = function(anteil, text) {
                                        meldungen[[length(meldungen) + 1]] <<-
                                          list(anteil = anteil, text = text)
@@ -378,14 +383,30 @@ test_that("ein echter Infobrief entsteht als docx mit Tabellen und Farben", {
     expect_gt(regexpr("Unterhalb des unteren Normbereichs", text, fixed = TRUE)[1],
               regexpr("Mit freundlichen Grüßen", text, fixed = TRUE)[1])
 
+    # Innenansicht: je Kennzahl ein eigener Absatz, Wortschatz zuerst
+    expect_match(text, "Die Kohorte startete bei", fixed = TRUE)
+    expect_match(text, "erreichte einen mittleren Zuwachs von", fixed = TRUE)
+    expect_match(text, "üblich für dieses Niveau sind etwa", fixed = TRUE)
+    expect_match(text, "die Entwicklung liegt", fixed = TRUE)
+    expect_lt(regexpr("(WE)", text, fixed = TRUE)[1],
+              regexpr("(R/F)", text, fixed = TRUE)[1])
+
+    # der Hinweisblock gehoert nicht mehr in den Brief
+    expect_false(grepl("Hinweise", text, fixed = TRUE))
+    expect_false(grepl("Neu in der Klasse", text, fixed = TRUE))
+    expect_false(grepl("Kein Partner im aktuellen Jahrgang", text, fixed = TRUE))
+    expect_false(grepl("Noch nicht bestätigte Zuordnungen", text, fixed = TRUE))
+    expect_false(grepl("Nicht teilgenommen", text, fixed = TRUE))
+    expect_false(grepl("Ausgewertet werden nur Kinder", text, fixed = TRUE))
+
     # ein einziges Dokument: keine eingebetteten Teildokumente, keine
     # zusaetzlichen Abschnittseigenschaften (Ursache leerer Seiten).
-    # Zwei Seitenumbrueche: vor den Hinweisen und vor dem Anhang.
+    # Ein Seitenumbruch: vor dem Anhang.
     z <- tempfile("pruef"); dir.create(z)
     utils::unzip(ergebnis$datei, exdir = z)
     expect_length(list.files(z, recursive = TRUE, pattern = "\\.docx$"), 0)
     expect_equal(sum(gregexpr("<w:sectPr", geholt$xml, perl = TRUE)[[1]] > 0), 1)
-    expect_equal(sum(gregexpr('<w:br w:type="page"', geholt$xml, perl = TRUE)[[1]] > 0), 2)
+    expect_equal(sum(gregexpr('<w:br w:type="page"', geholt$xml, perl = TRUE)[[1]] > 0), 1)
 
     # Farben (gruen/rot), Fett und echte Word-Tabellen
     expect_true(grepl("1E7B34", alle_xml, ignore.case = TRUE))

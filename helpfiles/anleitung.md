@@ -179,18 +179,8 @@ Der Entwicklungsbrief fasst die **Entwicklung einer Klasse über zwei Jahrgänge
 -   Darunter: wie viele Kinder aktuell unter dem unteren Normbereich (R/F-Wert unter dem eingestellten Wert, Standard 65 %) liegen, wie viele davon schon im Vorjahr betroffen waren und wie viele neu hinzugekommen sind bzw. den Normbereich wieder erreicht haben.
 -   Der Satz `Veränderungen sind farbig hervorgehoben.` weist auf die Farbgebung hin: grün = Verbesserung, rot = Rückgang, ab 20 Prozentpunkten zusätzlich fett.
 -   Die Tabelle `Die größten Verbesserungen/schwächste Entwicklung`: die 3 größten Zugewinne und die 3 schwächsten Entwicklungen in einer Tabelle. Kinder unter dem unteren Normbereich stehen **zuerst** und sind komplett fett markiert (Überschrift: „(Fett: unter Normbereich)").
--   Auf einer eigenen Seite `Hinweise`, danach auf einer weiteren Seite der `Anhang: Vergleich je Kind`: **alle** Kinder in alphabetischer Reihenfolge mit den Werten, die vorhanden sind (`Name`, `Klasse`, `WE % (5 → 6)`, `Δ WE`, `R/F % (5 → 6)`, `Δ R/F`). Fehlt ein Jahrgang, steht dort `-` – die Werte des vorhandenen Jahrgangs sind trotzdem zu sehen. Den Grund für eine fehlende Seite nennt die Liste im Tab Statistik (Spalte `Hinweis`), im Word-Anhang steht sie wegen der Seitenbreite nicht.
-
-##### Hinweise im Brief
-
-Diese Punkte stehen unter `Hinweise`. Die Kinder werden dort mit Namen genannt, weil sie in keiner der Tabellen auftauchen:
-
--   Neu in der Klasse (kein Vorjahreswert).
--   Kein Partner im aktuellen Jahrgang gefunden.
--   Nicht eindeutig zuzuordnen (gleicher Name mehrfach).
--   Noch nicht bestätigte Zuordnungen – diese werden nicht mitgezählt.
--   Klassenwechsel (Kind ist im aktuellen Jahrgang in einer anderen Klasse).
--   Nicht teilgenommen (Kategorie 0).
+-   Auf einer eigenen Seite der `Anhang: Vergleich je Kind`: **alle** Kinder in alphabetischer Reihenfolge mit den Werten, die vorhanden sind (`Name`, `Klasse`, `WE % (5 → 6)`, `Δ WE`, `R/F % (5 → 6)`, `Δ R/F`). Fehlt ein Jahrgang, steht dort `-` – die Werte des vorhandenen Jahrgangs sind trotzdem zu sehen. Den Grund für eine fehlende Seite nennt die Liste im Tab Statistik (Spalte `Hinweis`), im Word-Anhang steht sie wegen der Seitenbreite nicht.
+-   Ist der Schalter `Vergleichswerte der Schule anzeigen` an, steht unter jedem Abschnitt die Einordnung der Entwicklung – **ein Absatz je Kennzahl, Wortschatz zuerst**, z. B. `Die Kohorte startete bei 74,1 % (WE) und erreichte einen mittleren Zuwachs von −2,5 Punkten – üblich für dieses Niveau sind etwa +7,3; die Entwicklung liegt deutlich unter dem Üblichen.` (siehe `Vergleichswerte der Schule`).
 
 ##### Zuordnung und Ausgabe
 
@@ -198,7 +188,57 @@ Diese Punkte stehen unter `Hinweise`. Die Kinder werden dort mit Namen genannt, 
 -   Nach dem Erstellen des Briefes öffnet die App den Auswertungsordner; die Meldung nennt den Dateinamen.
 -   Sobald ein Vergleich möglich ist, enthält die Excel-Datei beim `Speichern` ein zusätzliches Blatt `Vergleich` mit derselben Tabelle; die Word-Auswertung bekommt sie als Anhang.
 
-> **Hinweis**: Ausgewertet und gezählt werden nur Kinder, für die zwei Messungen vorliegen. Alle anderen (neue Kinder, fehlende Vorjahreswerte, nicht bestätigte Vorschläge, nicht teilgenommene Kinder) erscheinen unter `Hinweise` und werden nicht mitgezählt – im `Anhang: Vergleich je Kind` stehen sie trotzdem mit ihren vorhandenen Werten.
+> **Hinweis**: Ausgewertet und gezählt werden nur Kinder, für die zwei Messungen vorliegen. Alle anderen (neue Kinder, fehlende Vorjahreswerte, nicht bestätigte Vorschläge, nicht teilgenommene Kinder) werden nicht mitgezählt – im `Anhang: Vergleich je Kind` stehen sie trotzdem mit ihren vorhandenen Werten. Welche Kinder betroffen sind, zeigt der Tab Statistik in der Tabelle `Vergleich je Kind (zwei Stufen)` in der Spalte `Hinweis`.
+
+### Vergleichswerte der Schule (Innenansicht)
+
+Die App kann die Ergebnisse zusätzlich **innerhalb der eigenen Schule** einordnen: „Diese 5. Klasse liegt im Mittelfeld der 5. Klassen dieser Schule", „das Kind liegt im 6. Jahrgang im oberen Viertel". Das ist ausdrücklich **keine Norm** – es sagt nur, wo ein Kind oder eine Klasse im eigenen Bestand steht. Der Verfahrensbezug (Referenzwert, Normbereich, `Kat.`) bleibt davon unberührt.
+
+Die Zahlen dafür stehen **nicht** in der App, sondern in einer eigenen Datei:
+
+```
+Dokumente\C-Test Auswertung\vorlagen\Vergleichswerte_C-Test.xlsx
+```
+
+Sie wird einmalig aus den vorhandenen tsv-Dateien erzeugt und enthält nur Kennzahlen – **keine Namen, keine Einzelwerte**. Vier Blätter: `Info` (Zeitraum, Schulart, Anzahl Klassen und Kinder, Verfahren, erzeugt am), `Kinder` (je Klassenstufe und Kennzahl `n` und die Schnittpunkte p10/p25/p50/p75/p90), `Klassen` (dasselbe für Klassenmittel **und** Klassenmediane) und `Entwicklung` (dasselbe für die Veränderung 5 → 6, dazu die Erwartung, siehe unten). Aus den Schnittpunkten bildet die App die Bänder:
+
+- **Kinder**: untere 10 % · im Jahrgangsbereich · obere 10 % (p10/p90). Liegen keine Dezile vor, gelten Viertel-Bänder.
+- **Klassen**: unteres Viertel · Mittelfeld · oberes Viertel (p25/p75).
+- **Entwicklung**: siehe unten – dort wird nicht die Veränderung allein bewertet, sondern die Abweichung von der Erwartung.
+
+Zu jedem Band zeigt die App ein **Rangintervall** (z. B. `obere 10 % (Rang 3–12 %)`). Der Messfehler eines einzelnen C-Test-Werts ist mit rund ±17 Prozentpunkten groß; das Intervall macht sichtbar, wie unsicher eine Einordnung ist. Deshalb gibt es für **einzelne Kinder** keine Viertel-Aussage, und die Klassenwerte beziehen sich immer auf dieselbe Klassenstufe. Mindestgrößen verhindern Aussagen auf zu dünner Basis: unter 30 Kindern, unter 8 Klassengruppen, bei Klassen unter 10 Kindern und bei Kohorten unter 10 Kindern (in der Statistik-Tabelle) wird nichts verglichen.
+
+#### Entwicklung 5 → 6: gemessen an der Erwartung
+
+Die reine Veränderung sagt wenig: Wer in der 5 schon bei 90 % steht, kann sich kaum verbessern, während ein Kind bei 30 % viel Raum hat. In unserer eigenen Auswertung liegt die mittlere Veränderung deshalb bei +8 Prozentpunkten, obwohl die Kinder ab dem Referenzwert im Mittel sogar leicht verlieren. Deshalb steht im Blatt `Entwicklung` für jede Kennzahl eine **Erwartungsgerade**:
+
+```
+erwartete Entwicklung = Erwartung_a + Erwartung_b · Startniveau
+```
+
+Das Startniveau ist der Mittelwert der 5. Klasse der Kohorte (die Erwartung ist auf den verbleibenden Raum bis 100 % gedeckelt). Verglichen wird dann die **Abweichung** von dieser Erwartung. Als Band dient die Streuung der Kohortenabweichungen dieser Schule (`Kohorten_SD`): innerhalb einer Standardabweichung gilt die Entwicklung als üblich. Das Rangintervall (± `Rest_SD`/√n, also der Fehler des Mittels) entscheidet nur über die Wortwahl:
+
+- Rangintervall ganz innerhalb des Bandes → **im üblichen Bereich**
+- Grenze berührt → **leicht über/unter dem Üblichen**
+- ganz außerhalb → **deutlich über/unter dem Üblichen**
+
+Die Entwicklung wird **immer auf Kohortenebene** ausgewertet (Klasse über zwei Jahre, 5c → 6c), nie für ein einzelnes Kind: Eine Veränderung aus zwei Messungen trägt rund ±12 Prozentpunkte Messfehler. Unter 4 Kohorten enthält die Datei keine `Kohorten_SD`; dann erscheint die Entwicklungszeile nicht.
+
+**Anzeigen** (nur, wenn der Schalter an ist – Vorgabe: aus, siehe `Vorlagen und Einstellungen`):
+
+- **Statistik-Tab**: oben bei Mittelwert und Median der Vergleich der geladenen Klassen (`5c (n = 27): R/F-Median 62,0 % → Mittelfeld (Rang …) · Bezug: 5. Klassen dieser Schule (n = 18)`). Darunter – sobald zwei Jahrgänge zugeordnet sind – die mittlere Entwicklung gegen die Erwartung: `Mittlere Entwicklung R/F (5 → 6): +7,5 (erwartet +7,9) – im üblichen Bereich`. Mit ausgeschalteter `Gesamtübersicht` steht die Zeile je Kohorte (`+6,3 (erwartet +7,8; 5a→6a), …`). Jeder Kasten zeigt nur seine Kennzahl.
+- **Übersichtstabelle**: zwei zusätzliche Spalten `Vergleich R/F` und `Vergleich WE` mit dem Band je Kind. Sie stehen **nur in der Ansicht** – Export, tsv und Briefe bleiben unverändert.
+- **Lehrkräfte-Infobrief** (Stand-Brief je Klasse und Entwicklungsbrief je Kohorte): beim Stand-Brief der Klassenmedian gegen die Klassen derselben Stufe, beim Entwicklungsbrief die Entwicklung gegen die Erwartung, z. B. `Die Kohorte startete bei 63,8 % (R/F) und erreichte einen mittleren Zuwachs von +20,2 Punkten – üblich für dieses Niveau sind etwa +6,8; die Entwicklung liegt deutlich über dem Üblichen.` **Nicht** im Elternbrief.
+
+Fehlt die Datei, wird nichts angezeigt und die App läuft unverändert; die Meldung im Abschnitt `Vorlagen und Einstellungen` nennt dann den erwarteten Pfad.
+
+**Eigene Datei erzeugen.** Dafür liegt im Projekt das Skript `werkzeuge/vergleich_erzeugen.R`. Es liest die tsv-Dateien ein, wendet die Regeln oben an und schreibt die Datei in den Vorlagenordner:
+
+```
+Rscript werkzeuge/vergleich_erzeugen.R [Datenordner] [Schulart]
+```
+
+Ohne `Datenordner` wird der Ausgabeordner der App gelesen (`Dokumente\C-Test Auswertung`), `Schulart` landet nur als Text im Blatt `Info` (z. B. `Gesamtschule`). Läuft das Skript erneut, wird die Datei ersetzt – die Vergleichswerte wachsen also mit jedem Durchgang mit. Ist die Datei gerade in Excel geöffnet, bricht das Skript mit einem Hinweis ab; die vorhandene Datei bleibt unverändert gültig.
 
 ### Vorlagen und Einstellungen
 
@@ -207,6 +247,7 @@ Elternbrief und Infobrief nutzen **dieselbe** Word-Vorlage. Im Tab `Elternbrief`
 -   `Briefvorlage öffnen`: legt beim ersten Klick eine persönliche Kopie der Vorlage unter `Dokumente\C-Test Auswertung\vorlagen` an und öffnet sie in Word. Angepasst werden hier **Briefkopf und Logo** (Kopf- und Fußzeile), Schriftarten, Absatzformate und Seitenränder. Die Änderung gilt für alle künftigen Elternbriefe **und** für den Infobrief. Der Wortlaut der Briefe steht nicht in der Vorlage – der gehört zur App und ändert sich mit ihr.
 -   `Vorlagen-Ordner öffnen`: öffnet den Ordner mit allen anpassbaren Dateien. Neben der Vorlage (`template.docx`) liegen dort die Texte zu den Kategorien (`ergebnisse.xlsx`) – daraus entsteht die Ergebnistabelle des Elternbriefes, eine echte Word-Tabelle. Vorlage dafür ist das Blatt **`Tabelle2`**: Zeilen, Überschriften und **verbundene Zellen** werden übernommen. Fehlt das Blatt (ältere persönliche Kopien), wird dieselbe Tabelle aus dem ersten Blatt abgeleitet. Das erste Blatt (`Tabelle1`) bleibt die Zuordnungstabelle – sie liefert den Satz zum einzelnen Kind (`C3: Ihr Kind hat …`) und braucht die Spalte `Kategorie`. Eine unlesbare Datei wird ignoriert, dann gilt weiter die mitgelieferte Tabelle.
 -   `Einstellungen öffnen`: öffnet `Dokumente\C-Test Auswertung\einstellungen.txt`. Darin stehen Ihre Eingaben aus der App – `Name des Lehrers`, `Signatur`, `Link zu Übungen`, `Absender`, `Anzahl der Test-Items` und die Ansicht im Tab Statistik (Differenz, Gesamtübersicht, Diagrammtyp). Sie werden **automatisch gespeichert**, sobald Sie etwas ändern, und beim nächsten Start wieder in die Felder eingesetzt. Sie müssen sie also nur einmal eintragen.
+-   `Vergleichswerte der Schule anzeigen`: Schalter für die Innenansicht (siehe `Vergleichswerte der Schule`). **Vorgabe: aus** – ohne den Schalter verhält sich die App wie bisher. Er wird wie die übrigen Einstellungen gespeichert (`vergleich_anzeigen=ja`).
 
 Unter den Knöpfen steht, **welche** Vorlage gerade gilt: die persönliche Kopie mit Pfad und Änderungsdatum oder – solange keine persönliche Kopie existiert – die mitgelieferte Vorlage.
 

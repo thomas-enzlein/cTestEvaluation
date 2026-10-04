@@ -403,7 +403,8 @@ rangliste_eins <- function(cohort, n = 3, grenze = .normgrenze("R/F")) {
 }
 
 # Datensatz fuer EINEN Abschnitt (einen Klassenbuchstaben)
-infobrief_abschnitt <- function(cohort, idx, buchstabe, rueckgang = 10, top = 3) {
+infobrief_abschnitt <- function(cohort, idx, buchstabe, rueckgang = 10, top = 3,
+                                vergleich = NULL) {
   teil <- cohort_teil(cohort, idx)
   g <- cohort_gematcht(teil)
   statistik <- cohort_statistik(teil)
@@ -427,8 +428,34 @@ infobrief_abschnitt <- function(cohort, idx, buchstabe, rueckgang = 10, top = 3)
     rangliste_titel = paste0("Die größten Verbesserungen/schwächste Entwicklung",
                              .abstand_hinweis(rangliste$unter)),
     # TRUE = Kind liegt mit dem aktuellen R/F-Wert unter dem unteren Normbereich
-    rangliste_unten = rangliste$unter
+    rangliste_unten = rangliste$unter,
+    # Innenansicht als fertiger Text (nur mit Vergleichswerte-Datei)
+    vergleich = .entwicklung_vergleich_text(vergleich, g)
   )
+}
+
+# Saetze zur Entwicklung eines Abschnitts: mittlere Veraenderung gegen die
+# Erwartung dieser Schule (siehe vergleich_entwicklung_urteil). Rueckgabe ist
+# ein Vektor - je Kennzahl ein Satz (Wortschatz zuerst, wie in den Tabellen),
+# damit die Vorlage daraus eigene Absaetze macht. NULL, wenn nichts zu
+# vergleichen ist.
+.entwicklung_vergleich_text <- function(vergleich, g) {
+  if (is.null(vergleich) || is.null(g) || nrow(g) == 0) return(NULL)
+  texte <- character(0)
+  for (kennzahl in c("WE", "R/F")) {
+    spalte <- if (kennzahl == "R/F") "RF" else "WE"
+    start <- suppressWarnings(as.numeric(g[[paste0(spalte, "_Alt")]]))
+    ziel <- suppressWarnings(as.numeric(g[[paste0(spalte, "_Neu")]]))
+    ok <- !is.na(start) & !is.na(ziel)
+    if (!any(ok)) next
+    urteil <- vergleich_entwicklung_urteil(vergleich, mean(start[ok]),
+                                           mean(ziel[ok] - start[ok]), kennzahl,
+                                           n_kinder = sum(ok))
+    if (is.null(urteil)) next
+    texte <- c(texte, vergleich_entwicklung_satz(urteil, kennzahl))
+  }
+  if (length(texte) == 0) return(NULL)
+  texte
 }
 
 # Unterer Normbereich als Textbausteine. Der Satz steht im Entwicklungsbrief
@@ -468,7 +495,8 @@ referenz_text <- function(referenz) {
 }
 
 # Gesamtdaten fuer den Brief: Kopf, Abschnitte je Buchstabe, Anhang
-infobrief_bericht <- function(cohort, rueckgang = 10, top_prosa = 3, top = 3) {
+infobrief_bericht <- function(cohort, rueckgang = 10, top_prosa = 3, top = 3,
+                              vergleich = NULL) {
   stopifnot(inherits(cohort, "cohort"))
 
   p <- cohort$paare
@@ -485,7 +513,8 @@ infobrief_bericht <- function(cohort, rueckgang = 10, top_prosa = 3, top = 3) {
                        ifelse(is.na(cohort$paare$Klasse_Neu),
                               cohort$paare$Klasse_Alt,
                               cohort$paare$Klasse_Neu)) == b)
-    infobrief_abschnitt(cohort, idx, b, rueckgang = rueckgang, top = top)
+    infobrief_abschnitt(cohort, idx, b, rueckgang = rueckgang, top = top,
+                        vergleich = vergleich)
   })
 
   hinweise <- character(0)
@@ -633,7 +662,7 @@ infobrief_vorbereiten <- function(quelle = file.path(getwd(), "infobrief")) {
 # Infobrief erstellen: Kopf + ein Abschnitt je Buchstabe + Abschluss in einem Lauf
 create_infobrief <- function(cohort, klassenleitung = "", absender = "",
                              rueckgang = 10, top_prosa = 3, top = 3,
-                             fortschritt = NULL) {
+                             fortschritt = NULL, vergleich = NULL) {
   # fortschritt(anteil, text) meldet den Stand an die Oberflaeche (0 bis 1)
   melde <- function(anteil, text) {
     if (is.function(fortschritt)) {
@@ -644,7 +673,7 @@ create_infobrief <- function(cohort, klassenleitung = "", absender = "",
 
   melde(0.05, "Daten werden zusammengestellt ...")
   bericht <- infobrief_bericht(cohort, rueckgang = rueckgang, top_prosa = top_prosa,
-                               top = top)
+                               top = top, vergleich = vergleich)
   if (bericht$n_gematcht == 0) {
     stop("Keine zugeordneten Kinder - es kann kein Infobrief erstellt werden.",
          call. = FALSE)
@@ -827,13 +856,15 @@ stand_statistik <- function(df) {
 # Ein Abschnitt des Stand-Briefs (eine Klasse).
 # Rueckgabe: Liste mit allen Feldern, die infobrief/stand.Rmd braucht.
 stand_abschnitt <- function(df, klasse, grenze = .normgrenze("R/F"),
-                            top = 3, unten = 3) {
+                            top = 3, unten = 3, vergleich = NULL) {
   klasse <- as.character(klasse)
   teil <- df[as.character(df$Klasse) == klasse, , drop = FALSE]
   kat <- as.character(teil$Kat.)
   we <- suppressWarnings(as.numeric(teil[["WE-%"]]))
   rf <- suppressWarnings(as.numeric(teil[["R/F-%"]]))
   statistik <- stand_statistik(teil)
+  # Innenansicht: Klassenmedian gegen die Vergleichswerte der Schule
+  vergleich_text <- .stand_vergleich_text(vergleich, statistik, rf, we, klasse)
 
   # Kennzahlentabelle: n (mit Werten), Mittel +- SD, Median
   tabelle <- data.frame(
@@ -902,14 +933,37 @@ stand_abschnitt <- function(df, klasse, grenze = .normgrenze("R/F"),
                          .abstand_hinweis(werte_unten)),
     werte_unten = werte_unten,
     lesetabelle = anhang$tabelle,
-    lese_unten = anhang$unter
+    lese_unten = anhang$unter,
+    # Innenansicht als fertiger Text (nur wenn eine Vergleichswerte-Datei
+    # uebergeben wurde) - die Vorlage druckt ihn, wenn er da ist
+    vergleich = vergleich_text
   )
+}
+
+# Satz zur Innenansicht eines Klassenabschnitts (Median gegen die
+# Vergleichswerte der Schule). NULL, wenn nichts zu vergleichen ist.
+.stand_vergleich_text <- function(vergleich, statistik, rf, we, klasse) {
+  if (is.null(vergleich)) return(NULL)
+  stufe <- .stufe_aus_klasse(klasse)
+  texte <- character(0)
+  for (kennzahl in c("R/F", "WE")) {
+    lage <- if (kennzahl == "R/F") statistik$median_RF[1] else statistik$median_WE[1]
+    n_k <- sum(!is.na(if (kennzahl == "R/F") rf else we))
+    if (n_k < .vergleich_min_klasse_kinder) next
+    urteil <- vergleich_urteil(vergleich, lage, kennzahl, "klasse",
+                               stufe = as.character(stufe), lagemass = "Median",
+                               n_kinder = n_k)
+    if (!is.null(urteil)) texte <- c(texte, vergleich_satz(urteil, kennzahl))
+  }
+  if (length(texte) == 0) return(NULL)
+  paste(texte, collapse = " ")
 }
 
 # Alle Abschnitte des Stand-Briefs: eine je Klasse, in der Reihenfolge der
 # Klassennamen. Klassen ohne Kinder mit Werten werden uebersprungen (die
 # Oberflaeche nennt sie in der Meldung).
-stand_bericht <- function(df, grenze = .normgrenze("R/F"), top = 3, unten = 3) {
+stand_bericht <- function(df, grenze = .normgrenze("R/F"), top = 3, unten = 3,
+                          vergleich = NULL) {
   statistik <- stand_statistik(df)
   if (nrow(statistik) == 0) {
     return(list(abschnitte = list(), klassen = character(0),
@@ -918,7 +972,8 @@ stand_bericht <- function(df, grenze = .normgrenze("R/F"), top = 3, unten = 3) {
   klassen <- as.character(statistik$Klasse[statistik$n_werte > 0])
   uebersprungen <- as.character(statistik$Klasse[statistik$n_werte == 0])
   list(abschnitte = lapply(klassen, function(k) stand_abschnitt(df, k, grenze = grenze,
-                                                               top = top, unten = unten)),
+                                                               top = top, unten = unten,
+                                                               vergleich = vergleich)),
        klassen = klassen,
        uebersprungen = uebersprungen)
 }
@@ -955,7 +1010,8 @@ stand_bericht <- function(df, grenze = .normgrenze("R/F"), top = 3, unten = 3) {
 
 # Stand-Brief erstellen: eine docx mit einer Seite je Klasse.
 create_standbrief <- function(df, absender = "", fortschritt = NULL,
-                              grenze = .normgrenze("R/F"), top = 3, unten = 3) {
+                              grenze = .normgrenze("R/F"), top = 3, unten = 3,
+                              vergleich = NULL) {
   melde <- function(anteil, text) {
     if (is.function(fortschritt)) {
       fortschritt(max(0, min(1, anteil)), text)
@@ -964,7 +1020,8 @@ create_standbrief <- function(df, absender = "", fortschritt = NULL,
   }
 
   melde(0.05, "Daten werden zusammengestellt ...")
-  bericht <- stand_bericht(df, grenze = grenze, top = top, unten = unten)
+  bericht <- stand_bericht(df, grenze = grenze, top = top, unten = unten,
+                           vergleich = vergleich)
   if (length(bericht$abschnitte) == 0) {
     stop("Keine Kinder mit Werten - es kann kein Stand-Brief erstellt werden.",
          call. = FALSE)

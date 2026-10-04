@@ -417,9 +417,10 @@ Ok "Auslieferungsordner enthaelt alle R-Pakete"
 Schritt "Quellcode nach app\ spiegeln"
 Info "$RepoRoot  ->  $AppQuelle"
 robocopy $RepoRoot $AppQuelle /MIR `
-    /XD ".git" ".github" ".Rproj.user" "tests" "build" "Auswertungen" "_factory" ".rtmp" `
+    /XD ".git" ".github" ".Rproj.user" "tests" "build" "werkzeuge" "analyse" "literatur" `
+        "Auswertungen" "_factory" ".rtmp" `
     /XF ".RData" ".Rhistory" "req_dev.txt" "*.log" ".gitignore" ".Rbuildignore" `
-        "template_1.docx" "~`$*" | Out-Null
+        "template_1.docx" "anleitung.html" "~`$*" | Out-Null
 if ($LASTEXITCODE -ge 8) { Abbruch "robocopy meldete Fehler (Exitcode $LASTEXITCODE)." }
 $global:LASTEXITCODE = 0
 
@@ -431,7 +432,8 @@ Copy-Item (Join-Path $RepoRoot "LICENSE.md") $FactoryDir -Force
 
 foreach ($muss in @("app\app.R", "app\ui.R", "app\server.R", "app\global.R",
                     "app\functions\functions.R", "app\infobrief\abschluss.Rmd",
-                    "app\vorlagen\template.docx", "app\vorlagen\ergebnisse.xlsx")) {
+                    "app\vorlagen\template.docx", "app\vorlagen\ergebnisse.xlsx",
+                    "app\vorlagen\Vergleichswerte_C-Test.xlsx")) {
     if (!(Test-Path (Join-Path $FactoryDir $muss))) { Abbruch "Im Auslieferungsordner fehlt: $muss" }
 }
 if (Test-Path (Join-Path $AppQuelle "Auswertungen")) {

@@ -1,20 +1,6 @@
-\newpage
-
-## Hinweise
-
-```{r, echo=FALSE, results='asis'}
-if (length(d$hinweise) > 0) {
-  for (h in d$hinweise) cat("- ", h, "\n", sep = "")
-} else {
-  cat("Es gibt keine offenen Punkte.\n")
-}
-```
-
-Hinweis: Ausgewertet werden nur Kinder, für die zwei Messungen vorliegen. Die Empfehlungen dienen als erste Orientierung und sollten bei Bedarf mit weiteren diagnostischen Werkzeugen abgesichert werden.
-
 ```{r, echo=FALSE, results='asis'}
 # Grussformel nur mit Namen: der Infobrief geht an das Kollegium, der Absender
-# ist optional - ohne Angabe endet der Brief mit dem Hinweis oben.
+# ist optional - ohne Angabe endet der Brief ohne Gruss.
 if (!is.null(d$absender) && nzchar(trimws(d$absender))) {
   cat("Mit freundlichen Grüßen,\n\n", trimws(d$absender), "\n", sep = "")
 }

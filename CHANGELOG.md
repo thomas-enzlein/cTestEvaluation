@@ -50,6 +50,64 @@ Kopie im Infobrief-Ordner ist entfallen. Die mitgelieferten anpassbaren Dateien 
 `Elternbrief` steht jetzt unter den Knöpfen, **welche** Vorlage gerade gilt (Pfad und
 Änderungsdatum).
 
+**Vergleichswerte der Schule (Innenansicht).** Ergebnisse lassen sich jetzt zusätzlich innerhalb
+der eigenen Schule einordnen (`5c liegt im Mittelfeld der 5. Klassen dieser Schule`, `das Kind
+liegt im 6. Jahrgang im oberen Viertel`). Das ist ausdrücklich **keine Norm**: Referenzwert,
+Normbereich und `Kat.` bleiben unverändert, die Innenansicht ist eine Zusatzinformation für das
+Kollegium. Die Zahlen stehen in `Vergleichswerte_C-Test.xlsx` im Vorlagenordner (Blätter `Info`,
+`Kinder`, `Klassen`, `Entwicklung`) und enthalten **keine Namen und keine Einzelwerte** – nur `n`
+und die Schnittpunkte p10/p25/p50/p75/p90, getrennt nach Klassenstufe (5, 6, 5 → 6), Kennzahl
+(R/F, WE) und Bezugsebene (Kinder, Klassenmittel, Klassenmedian). Erzeugt wird die Datei einmalig
+aus den vorhandenen tsv-Dateien (`werkzeuge/vergleich_erzeugen.R`, Aufruf mit Datenordner und
+Schulart); die App rechnet sie **nie** selbst aus, sondern liest sie nur.
+
+Angezeigt wird mit dem Schalter `Vergleichswerte der Schule anzeigen` (Vorgabe: **aus**):
+im **Statistik-Tab** der Vergleich der geladenen Klassen bei Mittelwert und Median (`5c (n = 27):
+R/F-Median 62,0 % → Mittelfeld (Rang 20–35 %) · Bezug: 5. Klassen dieser Schule (n = 18)`), in der
+**Übersichtstabelle** zwei zusätzliche Spalten `Vergleich R/F` und `Vergleich WE` je Kind (nur in
+der Ansicht, nicht in Export und Briefen) und im **Lehrkräfte-Infobrief** ein Satz je Klasse bzw.
+Kohorte. **Nicht** im Elternbrief.
+
+Die Bänder sind absichtlich weit, damit eine Schwankung um den Mittelwert nicht überinterpretiert
+wird: Kinder `untere 10 %` / `im Jahrgangsbereich` / `obere 10 %`, Klassen `unteres Viertel` /
+`Mittelfeld` / `oberes Viertel` (jeweils p10/p90 bzw. p25/p75). Liegen keine Dezile vor, gelten
+auch für Kinder Viertel-Bänder. Dazu zeigt die App ein **Rangintervall**
+(`obere 10 % (Rang 3–12 %)`): Ein einzelner C-Test-Wert trägt rund ±17 Prozentpunkte Messfehler,
+ein Klassenmedian dagegen nur rund ±3–4; deshalb gibt es für einzelne Kinder keine
+Viertel-Aussage. Unter 30 Kindern, unter 8 Klassengruppen oder bei Klassen unter 10 Kindern wird
+nichts verglichen, und ein oberes Band wird nicht behauptet, wenn der oberste Schnittpunkt am
+Maximum liegt (WE = 100 %).
+
+**Entwicklung 5 → 6 wird an der Erwartung gemessen.** Die Veränderung allein ist irreführend: In
+unseren Daten legen die Kinder im Mittel +8 Prozentpunkte zu – aber nur, weil die schwächeren zwei
+Drittel viel aufholen; Kinder ab dem Referenzwert stagnieren oder verlieren (Start 71–85: +0,7;
+ab 85: −3,3). Der Grund ist die Decke und die Regression zur Mitte. Deshalb steht im Blatt
+`Entwicklung` der Referenzdatei je Kennzahl eine **Erwartungsgerade**
+`erwartete Entwicklung = Erwartung_a + Erwartung_b · Startniveau` (Startniveau = Mittel der
+5. Klasse der Kohorte, gedeckelt auf den verbleibenden Raum bis 100 %). Bewertet wird die
+**Abweichung** davon; das Band ist die Streuung der Kohortenabweichungen dieser Schule (±1
+`Kohorten_SD`), das Rangintervall (± `Rest_SD`/√n) entscheidet über die Wortwahl:
+
+- **Statistik-Tab** je Kasten eine Zeile: `Mittlere Entwicklung R/F (5 → 6): +7,5 (erwartet
+  +7,9) – im üblichen Bereich`; mit ausgeschalteter `Gesamtübersicht` je Kohorte
+  (`+6,3 (erwartet +7,8; 5a→6a), …`). Die Zeile erscheint nur, wenn der Schalter an ist, die
+  Datei die Erwartung enthält und zwei Jahrgänge zugeordnet sind.
+- **Entwicklungsbrief** je Kohorte ein Satz: `Die Kohorte startete bei 63,8 % (R/F) und erreichte
+  einen mittleren Zuwachs von +20,2 Punkten – üblich für dieses Niveau sind etwa +6,8; die
+  Entwicklung liegt deutlich über dem Üblichen.` Je Kennzahl steht ein **eigener Absatz**,
+  Wortschatz zuerst (`(WE)` vor `(R/F)`).
+- Die Wortwahl ist `im üblichen Bereich` / `leicht über bzw. unter dem Üblichen` / `deutlich über
+  bzw. unter dem Üblichen`. Einzelkinder bekommen **keine** Entwicklungs-Aussage (eine
+  Veränderung aus zwei Messungen trägt rund ±12 Prozentpunkte Messfehler). Ältere Referenzdateien
+  ohne Erwartung funktionieren weiter – dann fehlt nur die Entwicklungszeile.
+
+**Entwicklungsbrief ohne Hinweisblock.** Die Seite `Hinweise` (neue Kinder, fehlende Partner,
+nicht bestätigte Zuordnungen, Klassenwechsel, nicht teilgenommen) und der abschließende
+Hinweissatz entfallen. Der Brief endet nach den Kohorten-Abschnitten mit der Grußformel; danach
+folgt nur noch der `Anhang: Vergleich je Kind` – ein Seitenumbruch weniger als bisher. Welche
+Kinder nicht zugeordnet sind, steht weiterhin im Tab Statistik in der Tabelle
+`Vergleich je Kind (zwei Stufen)` (Spalte `Hinweis`).
+
 ## 1.9
 
 **Sortierung in Word und Excel.** Die beim Speichern erzeugten Dateien sind jetzt erst nach Klasse,

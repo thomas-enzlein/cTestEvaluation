@@ -92,7 +92,8 @@ body <- dashboardBody(
               createPlotOutput("histWE")
             ),
             fluidRow(
-              createStatsOutput("statsWE")
+              createStatsOutput("statsWE"),
+              uiOutput("vergleichKlasseWE")
             ),
             fluidRow(
               column(width = 6, offset = 1,
@@ -126,6 +127,7 @@ body <- dashboardBody(
             ),
             fluidRow(
               createStatsOutput("statsRF"),
+              uiOutput("vergleichKlasse"),
               uiOutput("dynamicText")
               
             ),
@@ -253,6 +255,16 @@ body <- dashboardBody(
                    column(width = 4,
                           createActionButton("btEinstellungen", "Einstellungen öffnen",
                                              icon("gear")))
+                 ),
+                 fluidRow(
+                   column(width = 12,
+                          checkboxInput(inputId = "cbVergleich",
+                                        label = paste0("Vergleichswerte der Schule anzeigen ",
+                                                       "(Innenansicht, Vorgabe: aus)"),
+                                        value = FALSE))
+                 ),
+                 fluidRow(
+                   column(width = 12, uiOutput("vergleichwerteHinweis"))
                  ),
                  width = 12
                )
