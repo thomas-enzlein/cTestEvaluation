@@ -79,6 +79,13 @@ jobs:
         shell: pwsh
         run: Rscript tests/run_tests.R
 
+      # Die Suite kann einen Startfehler nicht sehen: testServer() wertet den
+      # Server in einem Reaktiv-Kontext aus. Deshalb hier die App wirklich
+      # starten - vor dem Bau, damit kein Paket entsteht, das nicht anlaeuft.
+      - name: App startet (Smoke-Test)
+        shell: pwsh
+        run: Rscript tests/smoke_start.R
+
       - name: Inno Setup bereitstellen
         shell: pwsh
         run: |

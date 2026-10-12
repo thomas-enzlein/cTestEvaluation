@@ -420,3 +420,13 @@ test_that("die Itemzahl steht in der tsv, aber nicht in den Berichten", {
     expect_length(lade_hinweise(wieder), 0)
   })
 })
+
+test_that(".ist_leer prueft einzelne Werte und Vektoren", {
+  expect_true(.ist_leer(""))
+  expect_true(.ist_leer("   "))
+  expect_true(.ist_leer(NA_character_))
+  expect_false(.ist_leer("5c"))
+  expect_equal(.ist_leer(c("5a", "", NA)), c(FALSE, TRUE, TRUE))
+  # bei character(0) kommt nichts zurueck: Aufrufer pruefen die Laenge davor
+  expect_equal(.ist_leer(character(0)), logical(0))
+})

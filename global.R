@@ -23,6 +23,11 @@ lvls <- c("1A", "1B",
           "4C", "4C*", "4D", "4E", 
           "5C", "5C*", "5D", "5E")
 
+# Reihenfolge: erst die unterste Schicht (Helfer, Formatierung), dann die
+# Fachlogik. R loest Funktionsaufrufe erst beim Aufruf auf, die Reihenfolge ist
+# deshalb nur fuer top-level ausgefuhrten Code wichtig.
+source("functions/utils.R")
+source("functions/formatierer.R")
 source("functions/functions.R")
 source("functions/cohort.R")
 source("functions/infobrief.R")

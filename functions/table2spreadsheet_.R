@@ -1,8 +1,10 @@
 setExcelBackgroundColor <- function(wb, df, colors, levels, sheetName) {
   stopifnot(length(colors) == length(levels))
   
-  # Zeile 1 ist die Kopfzeile, die Daten beginnen in Zeile 2
-  zeilen <- seq_len(length(df$Kat.)) + 1
+  # Zeile 1 ist die Kopfzeile, die Daten beginnen in Zeile 2. Excel faerbt ueber
+  # bedingte Formatierung (Formel je Kategorie) - die Zeilen-Zuordnung aus
+  # .kat_zeilen() wird dafuer nicht gebraucht, nur derselbe exakte Vergleich.
+  zeilen <- seq_len(nrow(df)) + 1
   
   for(i in seq_along(levels)) {
     st <- openxlsx::createStyle(fontColour = "black", bgFill = colors[i])

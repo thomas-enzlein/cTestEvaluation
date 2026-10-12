@@ -18,6 +18,12 @@ sidebar <- dashboardSidebar(
                             buttonLabel = "Laden",
                             placeholder = "*.tsv auswählen"))
     ),
+    # Liste der geladenen Dateien mit x (erscheint erst mit Daten)
+    fluidRow(
+      column(width = 12,
+             offset = 0,
+             uiOutput("dateiListeUI"))
+    ),
   # Stufenvergleich: gilt fuer das Entwicklungsdiagramm UND den Infobrief
   div(style = "padding-left: 15px; padding-right: 15px;",
       selectInput(inputId = "siStufeAlt",
@@ -32,7 +38,7 @@ sidebar <- dashboardSidebar(
     menuItem("Auswertung", tabName = "auswertung", icon = icon("th")),
     menuItem("Statistik", tabName = "statistik", icon = icon("chart-line")),
     menuItem("Infobrief", tabName = "infobrief", icon = icon("file-lines")),
-    menuItem("Elternbrief", tabName = "experten", icon = icon("envelope")),
+    menuItem("Elternbrief", tabName = "elternbrief", icon = icon("envelope")),
     menuItem("Anleitung", tabName = "anleitung", icon = icon("circle-question"))
   )
   

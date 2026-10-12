@@ -26,9 +26,10 @@ if (!is.null(d$werte)) {
 
 ```{r, echo=FALSE, results='asis'}
 # Innenansicht: nur wenn eine Vergleichswerte-Datei vorliegt und der Schalter
-# in den Einstellungen an ist (siehe vergleich_klassen_zeilen)
+# in den Einstellungen an ist (siehe vergleich_klassen_zeilen). Je Kennzahl ein
+# eigener Absatz, Wortschatz zuerst - wie im Entwicklungsbrief.
 if (!is.null(d$vergleich)) {
-  cat("\n", d$vergleich, "\n", sep = "")
+  for (zeile in d$vergleich) cat("\n", zeile, "\n\n", sep = "")
 }
 ```
 

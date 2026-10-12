@@ -3,6 +3,40 @@
 Der Abschnitt der Version, die als Tag veröffentlicht wird, wird als Beschreibung des
 GitHub-Releases verwendet.
 
+## 1.11
+
+**Geladene Dateien schließen.** Unter dem `Laden`-Button steht jetzt die Liste der geladenen Dateien
+(`29.10.24 - 5c,d,e`, bei sehr vielen Klassen `29.10.24 - 5c, +8`). Das **×** schließt eine einzelne
+Datei, ab zwei Dateien gibt es zusätzlich **Alle schließen**. Vorher fragt die App nach;
+`Vorher sichern und schließen` erscheint nur, wenn der Datenstand noch nicht gesichert ist. Danach
+ist die App im Ausgangszustand – ein Neustart, um sich eine andere Klasse anzusehen, ist nicht mehr
+nötig. Die Dateien selbst bleiben im Auswertungsordner liegen, und von Hand eingetippte Zeilen
+bleiben beim Schließen erhalten.
+
+**Mehrere Dateien je Stufe.** Eine Stufe darf jetzt auf mehrere Dateien verteilt sein (etwa 5a–5b in
+einer und 5c–5e in einer anderen); der Stufenvergleich bleibt dafür offen. Gewarnt wird nur, wenn
+**dieselben Kinder** zweimal in der Tabelle stehen (gleiche Klasse und gleicher Name) – dann zählen sie
+doppelt, und der Weg heraus ist das × in der Dateiliste. Zwei Dateien mit gleichnamiger Klasse aus
+verschiedenen Jahren (6a 2025 und 6a 2026) enthalten andere Kinder und sind kein Fehler. Die
+Namenszuordnung rechnet dafür vektorisiert und ist bei großen Jahrgängen rund 45× schneller
+(140 Kinder je Stufe: 46 s → 1 s) – bei unveränderten Werten.
+
+**Statistik: ruhigere y-Achse.** Werden mehr als zwei Klassen untereinander gezeigt, hat die y-Achse
+nur noch zwei Marken (Null und oberes Ende), und der Achsentitel steht einmal statt in jedem Panel.
+
+**Statistik: Urteil je Kohorte.** Die mittlere Entwicklung steht jetzt als kleine Überschrift mit
+einer Zeile je Kohorte, jede mit eigener Bewertung (`5c→6c: +15,5 (erwartet +10,3) – leicht über dem
+Üblichen`). Vorher hing ein einziges Urteil am Ende der Zeile und fehlte ganz, sobald die Kohorten
+unterschiedlich bewertet wurden. Mit eingeschalteter `Gesamtübersicht` bleibt es bei einer Zeile über
+alle zugeordneten Kinder.
+
+**Restrukturierung – Verhalten unverändert.** Der Code ist aufgeräumt und aufgeteilt: technische
+Helfer liegen in `functions/utils.R`, die Darstellung in `functions/formatierer.R`, beide Briefarten
+teilen sich einen Baukasten, die Statuszeile der App ist eine einzige Ausgabe, und Mittelwert,
+Median und Standardabweichung kommen aus einer Funktion. Nicht mehr benutzte Funktionen und Dateien
+sind entfallen. Für die Wartung gibt es jetzt `docs/architektur.md` (Schichten, Konventionen,
+Rezepte, Release-Ablauf).
+
 ## 1.10
 
 **Elternbrief: Klassenauswahl.** Im Tab `Elternbrief` wird jetzt gewählt, für wen die Briefe

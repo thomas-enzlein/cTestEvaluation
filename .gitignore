@@ -35,3 +35,12 @@ literatur/
 # Nebenprodukt: includeMarkdown() legt beim Laden der App eine HTML-Fassung der
 # Anleitung neben die Markdown-Datei. Gehoert nicht ins Repository.
 helpfiles/anleitung.html
+# Leerer Arbeitsordner, den Werkzeuge gelegentlich anlegen (Nebenprodukt).
+.ctmp/
+# Das Logo steckt im Kopf der template.docx und wird von keiner Vorlage als
+# eigene Datei geladen; die lokale Kopie bleibt zum Bearbeiten des Templates.
+vorlagen/logo.png
+# Altbestand: die Ergebnistabelle ist seit 1.10 eine echte Word-Tabelle, das
+# Bild wird nicht mehr verwendet. Dropbox holt es gelegentlich auf die Platte
+# zurueck - ins Repository soll es nicht mehr.
+elternbrief/table.png

@@ -418,9 +418,9 @@ Schritt "Quellcode nach app\ spiegeln"
 Info "$RepoRoot  ->  $AppQuelle"
 robocopy $RepoRoot $AppQuelle /MIR `
     /XD ".git" ".github" ".Rproj.user" "tests" "build" "werkzeuge" "analyse" "literatur" `
-        "Auswertungen" "_factory" ".rtmp" `
+        "Auswertungen" "_factory" ".rtmp" ".ctmp" "docs" `
     /XF ".RData" ".Rhistory" "req_dev.txt" "*.log" ".gitignore" ".Rbuildignore" `
-        "template_1.docx" "anleitung.html" "~`$*" | Out-Null
+        "template_1.docx" "anleitung.html" "logo.png" "~`$*" | Out-Null
 if ($LASTEXITCODE -ge 8) { Abbruch "robocopy meldete Fehler (Exitcode $LASTEXITCODE)." }
 $global:LASTEXITCODE = 0
 
@@ -431,6 +431,7 @@ Copy-Item (Join-Path $RepoRoot "README.md") $FactoryDir -Force
 Copy-Item (Join-Path $RepoRoot "LICENSE.md") $FactoryDir -Force
 
 foreach ($muss in @("app\app.R", "app\ui.R", "app\server.R", "app\global.R",
+                    "app\functions\utils.R", "app\functions\formatierer.R",
                     "app\functions\functions.R", "app\infobrief\abschluss.Rmd",
                     "app\vorlagen\template.docx", "app\vorlagen\ergebnisse.xlsx",
                     "app\vorlagen\Vergleichswerte_C-Test.xlsx")) {

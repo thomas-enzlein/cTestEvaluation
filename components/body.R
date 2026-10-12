@@ -181,9 +181,6 @@ body <- dashboardBody(
         box(
           title = "Zuordnung zum Vorjahr",
           fluidRow(
-            column(width = 12, uiOutput("zuordnungHinweis"))
-          ),
-          fluidRow(
             div(dataTableOutput("tabZuordnung"),
                 style = "margin-left:15px;
                          margin-right:15px")
@@ -203,7 +200,7 @@ body <- dashboardBody(
       )
     ),
     tabItem(
-      tabName = "experten",
+      tabName = "elternbrief",
       fluidRow(
         column(width = 4,
                box(

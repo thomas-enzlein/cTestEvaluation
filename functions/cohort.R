@@ -60,6 +60,60 @@ name_aehnlichkeit <- function(a, b) {
   0.6 * token_score + 0.4 * ganz
 }
 
+# Aehnlichkeiten aller Paare zweier Namenslisten als Matrix (Zeilen = a,
+# Spalten = b). Dieselbe Formel wie name_aehnlichkeit(), aber die Tokenzerlegung
+# und die Token-Token-Distanzen fallen EINMAL an statt je Namenspaar. Bei einer
+# Klasse ist das kaum zu merken, bei einem ganzen Jahrgang der Unterschied
+# zwischen Minuten und Sekunden.
+.name_aehnlichkeiten <- function(a, b) {
+  if (length(a) == 0 || length(b) == 0) {
+    return(matrix(numeric(0), nrow = length(a), ncol = length(b)))
+  }
+  tok_a <- lapply(a, name_tokens)
+  tok_b <- lapply(b, name_tokens)
+  leer_a <- vapply(tok_a, length, 0L) == 0
+  leer_b <- vapply(tok_b, length, 0L) == 0
+  ganz_a <- vapply(tok_a, paste, "", collapse = " ")
+  ganz_b <- vapply(tok_b, paste, "", collapse = " ")
+
+  alle <- sort(unique(c(unlist(tok_a), unlist(tok_b))))
+  sim <- 1 - stringdist::stringdistmatrix(alle, alle, method = "jw", p = 0.1)
+  treffer <- as.matrix(sim) >= 0.80
+
+  idx_a <- lapply(tok_a, function(t) match(t, alle))
+  idx_b <- lapply(tok_b, function(t) match(t, alle))
+  indikator <- function(idx) {
+    m <- matrix(FALSE, nrow = length(alle), ncol = length(idx))
+    for (k in seq_along(idx)) {
+      if (length(idx[[k]]) > 0) m[idx[[k]], k] <- TRUE
+    }
+    m
+  }
+  ind_a <- indikator(idx_a)
+  ind_b <- indikator(idx_b)
+
+  # Abdeckung: Anteil der Tokens eines Namens, die irgendeinen Token des anderen
+  # treffen - in beide Richtungen, danach gemittelt wie in name_aehnlichkeit()
+  ab_a <- matrix(0, nrow = length(a), ncol = length(b))
+  for (i in seq_along(idx_a)) {
+    if (length(idx_a[[i]]) == 0) next
+    ab_a[i, ] <- colMeans((treffer[idx_a[[i]], , drop = FALSE] %*% ind_b) > 0)
+  }
+  ab_b <- matrix(0, nrow = length(b), ncol = length(a))
+  for (j in seq_along(idx_b)) {
+    if (length(idx_b[[j]]) == 0) next
+    ab_b[j, ] <- colMeans((treffer[idx_b[[j]], , drop = FALSE] %*% ind_a) > 0)
+  }
+
+  token_score <- (ab_a + t(ab_b)) / 2
+  ganz <- 1 - stringdist::stringdistmatrix(ganz_a, ganz_b, method = "jw", p = 0.1)
+  ergebnis <- matrix(0.6 * token_score + 0.4 * as.matrix(ganz),
+                     nrow = length(a), ncol = length(b))
+  # ohne Tokens (leerer Name) gibt es keine Aehnlichkeit
+  ergebnis[leer_a, ] <- 0
+  ergebnis[, leer_b] <- 0
+  ergebnis
+}
 #### Zuordnung ####
 
 # Arbeitskopie der Schuelerdaten mit einheitlichen Spaltennamen
@@ -112,13 +166,12 @@ build_cohort <- function(df, stufe_alt, stufe_neu, entscheidungen = NULL,
   # alle Paare bewerten
   paare <- expand.grid(i = seq_len(nrow(alt_frei)), j = seq_len(nrow(neu_frei)))
   if (nrow(paare) > 0) {
-    paare$Aehnlichkeit <- mapply(function(i, j) {
-      name_aehnlichkeit(alt_frei$Name[i], neu_frei$Name[j])
-    }, paare$i, paare$j)
-    paare$gleicher_buchstabe <- mapply(function(i, j) {
-      isTRUE(alt_frei$Buchstabe[i] == neu_frei$Buchstabe[j]) &&
-        nzchar(alt_frei$Buchstabe[i])
-    }, paare$i, paare$j)
+    aehnlichkeiten <- .name_aehnlichkeiten(alt_frei$Name, neu_frei$Name)
+    paare$Aehnlichkeit <- aehnlichkeiten[cbind(paare$i, paare$j)]
+    buchstabe_alt <- alt_frei$Buchstabe[paare$i]
+    buchstabe_neu <- neu_frei$Buchstabe[paare$j]
+    paare$gleicher_buchstabe <- !is.na(buchstabe_alt) & !is.na(buchstabe_neu) &
+      buchstabe_alt == buchstabe_neu & nzchar(buchstabe_alt)
     # absteigend nach Aehnlichkeit, bei Gleichstand gleicher Buchstabe zuerst
     paare <- paare[order(-paare$Aehnlichkeit, -paare$gleicher_buchstabe), , drop = FALSE]
 
@@ -274,16 +327,16 @@ cohort_statistik <- function(x) {
                    WE = g$WE_Neu, RF = g$RF_Neu)
   )
 
+  # Rechen- und Rundungsregeln stehen in .kennzahlen() (functions.R): dieselben
+  # Zahlen wie im Statistik-Tab und im Stand-Brief
   zusammenfassen <- function(daten) {
+    we <- .kennzahlen(daten$WE)
+    rf <- .kennzahlen(daten$RF)
     tibble::tibble(
       n = nrow(daten),
       n_werte = sum(!is.na(daten$WE) | !is.na(daten$RF)),
-      mittel_WE = round(mean(daten$WE, na.rm = TRUE), 1),
-      median_WE = round(stats::median(daten$WE, na.rm = TRUE), 1),
-      sd_WE = round(stats::sd(daten$WE, na.rm = TRUE), 1),
-      mittel_RF = round(mean(daten$RF, na.rm = TRUE), 1),
-      median_RF = round(stats::median(daten$RF, na.rm = TRUE), 1),
-      sd_RF = round(stats::sd(daten$RF, na.rm = TRUE), 1)
+      mittel_WE = we$mittel, median_WE = we$median, sd_WE = we$sd,
+      mittel_RF = rf$mittel, median_RF = rf$median, sd_RF = rf$sd
     )
   }
 
@@ -328,23 +381,6 @@ unter_referenz <- function(x, grenze = .normgrenze("R/F")) {
   )
 }
 
-# Groesste Verbesserungen und deutliche Rueckgaenge (gemessen am R/F-Wert,
-# WE-Wert wird mitberichtet).
-cohort_ranking <- function(x, top = 3, rueckgang = 10) {
-  g <- cohort_gematcht(x)
-  g <- g[!is.na(g$dRF), , drop = FALSE]
-
-  if (nrow(g) == 0) {
-    return(list(verbesserungen = g, rueckgaenge = g))
-  }
-
-  g <- g[order(-g$dRF), , drop = FALSE]
-  list(
-    verbesserungen = utils::head(g[g$dRF > 0, , drop = FALSE], top),
-    rueckgaenge = g[g$dRF <= -abs(rueckgang), , drop = FALSE]
-  )
-}
-
 #### Zuordnung speichern und wieder anwenden ####
 
 # Pruefsumme der Kohorte: erkennt, ob eine gespeicherte Zuordnung zu den
@@ -362,8 +398,7 @@ kohorte_pruefsumme <- function(cohort) {
 # Stufen) - unabhaengig davon, ob die Daten getippt oder geladen wurden und
 # unabhaengig von Dateinamen.
 zuordnung_dateiname <- function(stufe_alt = NULL, stufe_neu = NULL,
-                                klassen_alt = NULL, klassen_neu = NULL,
-                                dateien = NULL) {
+                                klassen_alt = NULL, klassen_neu = NULL) {
   kurz <- function(x) {
     x <- as.character(x)
     x <- x[!is.na(x) & nzchar(x)]
@@ -465,9 +500,8 @@ cohort_tabelle <- function(daten, mit_klasse = TRUE, mit_hinweis = FALSE,
                            stufe_alt = NULL, stufe_neu = NULL) {
   if (is.null(daten) || nrow(daten) == 0) return(NULL)
 
-  als_zahl <- function(x) ifelse(is.na(x), "-", de_zahl(x))
   spanne <- function(vorher, aktuell) {
-    paste0(als_zahl(vorher), " \u2192 ", als_zahl(aktuell))
+    paste0(de_zahl(vorher), " \u2192 ", de_zahl(aktuell))
   }
   # Klasse: das Kind kann nur in einem Jahrgang vorkommen
   klasse_text <- function(alt, neu) {
@@ -512,38 +546,4 @@ vergleich_tabelle <- function(cohort, mit_hinweis = TRUE) {
   tab <- tab[order(tab$Name), , drop = FALSE]
   rownames(tab) <- NULL
   tab
-}
-
-# Top-Verbesserungen und die schwaechsten Entwicklungen (je Kind eine Zeile).
-# Bei den schwaechsten zuerst die Kinder, die weiterhin unter dem unteren
-# Normbereich liegen (dabei "schon im Vorjahr betroffen" vor "neu dazu"),
-# erst danach die groessten Verschlechterungen ueber dem Normbereich.
-cohort_rangliste <- function(cohort, top = 5, schwach = 5, grenze = .normgrenze("R/F")) {
-  if (is.null(cohort) || !inherits(cohort, "cohort")) {
-    return(list(verbesserungen = NULL, schwach = NULL))
-  }
-  g <- cohort_gematcht(cohort)
-  g <- g[!is.na(g$dRF), , drop = FALSE]
-  if (nrow(g) == 0) return(list(verbesserungen = NULL, schwach = NULL))
-
-  # im Brief ohne Klassenspalte (die Ueberschrift nennt die Stufen)
-  als_tabelle <- function(daten) {
-    cohort_tabelle(daten, mit_klasse = FALSE,
-                   stufe_alt = cohort$stufe_alt, stufe_neu = cohort$stufe_neu)
-  }
-
-  verbesserungen <- g[g$dRF > 0, , drop = FALSE]
-  verbesserungen <- verbesserungen[order(-verbesserungen$dRF), , drop = FALSE]
-
-  unter <- g[!is.na(g$RF_Neu) & g$RF_Neu < grenze, , drop = FALSE]
-  vorjahr <- unter[!is.na(unter$RF_Alt) & unter$RF_Alt < grenze, , drop = FALSE]
-  neu_dazu <- unter[!(unter$Name_Neu %in% vorjahr$Name_Neu), , drop = FALSE]
-  vorjahr <- vorjahr[order(vorjahr$RF_Neu), , drop = FALSE]
-  neu_dazu <- neu_dazu[order(neu_dazu$RF_Neu), , drop = FALSE]
-  ueber <- g[!is.na(g$RF_Neu) & g$RF_Neu >= grenze, , drop = FALSE]
-  ueber <- ueber[order(ueber$dRF), , drop = FALSE]
-
-  schwach_tbl <- dplyr::bind_rows(vorjahr, neu_dazu, ueber)
-  list(verbesserungen = als_tabelle(utils::head(verbesserungen, top)),
-       schwach = als_tabelle(utils::head(schwach_tbl, schwach)))
 }

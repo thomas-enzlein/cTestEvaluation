@@ -183,20 +183,23 @@ test_that("Entwicklung: Satz fuer den Brief und Zeile fuer den Statistik-Tab", {
   expect_match(vergleich_entwicklung_satz(stark, "WE"), "(WE)", fixed = TRUE)
 
   ueblich <- vergleich_entwicklung_urteil(ref, 61.4, 5.0, "R/F", n_kinder = 22)
-  zeile <- vergleich_entwicklung_zeile(stats::setNames(list(ueblich), ""), "R/F")
-  expect_match(zeile, "Mittlere Entwicklung R/F (5 \u2192 6)", fixed = TRUE)
-  expect_match(zeile, "+5,0 (erwartet +7,8)", fixed = TRUE)
-  expect_match(zeile, "im üblichen Bereich", fixed = TRUE)
+  block <- vergleich_entwicklung_block(stats::setNames(list(ueblich), ""), "R/F")
+  expect_match(block$titel, "Mittlere Entwicklung R/F (5 \u2192 6)", fixed = TRUE)
+  expect_length(block$zeilen, 1)
+  expect_match(block$zeilen, "+5,0 (erwartet +7,8)", fixed = TRUE)
+  expect_match(block$zeilen, "im üblichen Bereich", fixed = TRUE)
 
-  # je Kohorte mit Beschriftung
-  zwei <- vergleich_entwicklung_zeile(list("5a\u21926a" = ueblich, "5c\u21926c" = stark), "R/F")
-  expect_match(zwei, "; 5a\u21926a", fixed = TRUE)
-  expect_match(zwei, "; 5c\u21926c", fixed = TRUE)
-  # mehrere Bewertungen -> keine Sammelbewertung am Ende
-  expect_false(grepl("üblich", zwei, fixed = TRUE) && grepl("üblich.", zwei, fixed = TRUE))
+  # je Kohorte: EINE Zeile pro Kohorte, jede mit ihrem EIGENEN Urteil -
+  # auch wenn die Kohorten gegenlaeufig sind
+  zwei <- vergleich_entwicklung_block(list("5a\u21926a" = ueblich, "5c\u21926c" = stark), "R/F")
+  expect_length(zwei$zeilen, 2)
+  expect_match(zwei$zeilen[1], "5a\u21926a: ", fixed = TRUE)
+  expect_match(zwei$zeilen[1], "im üblichen Bereich", fixed = TRUE)
+  expect_match(zwei$zeilen[2], "5c\u21926c: ", fixed = TRUE)
+  expect_match(zwei$zeilen[2], "über dem Üblichen", fixed = TRUE)
 
   expect_null(vergleich_entwicklung_satz(NULL))
-  expect_null(vergleich_entwicklung_zeile(list(), "R/F"))
+  expect_null(vergleich_entwicklung_block(list(), "R/F"))
 })
 
 test_that("Kurzform und Satz nennen Band, Rang und Bezugsgruppe", {
@@ -304,8 +307,11 @@ test_that("der Stand-Brief nimmt den Klassenvergleich auf", {
   mit <- stand_bericht(df, vergleich = ref)
   text <- mit$abschnitte[[1]]$vergleich
   expect_false(is.null(text))
-  expect_match(text, "Klassen-Median R/F", fixed = TRUE)
-  expect_match(text, "den 5. Klassen dieser Schule", fixed = TRUE)
+  # je Kennzahl ein eigener Satz, Wortschatz zuerst (wie im Entwicklungsbrief)
+  expect_length(text, 2)
+  expect_match(text[1], "WE", fixed = TRUE)
+  expect_match(text[2], "Klassen-Median R/F", fixed = TRUE)
+  expect_match(paste(text, collapse = " "), "den 5. Klassen dieser Schule", fixed = TRUE)
 
   # eine zu kleine Klasse bleibt ohne Vergleich
   klein <- stand_bericht(grosse_klasse("5c", n = 6), vergleich = ref)
@@ -349,25 +355,31 @@ test_that("die Entwicklungszeile im Statistik-Tab kommt aus der Zuordnung", {
     stringsAsFactors = FALSE)
 
   ohne <- vergleich_entwicklung_zeilen(gematcht, NULL, "R/F")
-  expect_length(ohne, 0)
-  expect_length(vergleich_entwicklung_zeilen(NULL, ref, "R/F"), 0)
-  expect_length(vergleich_entwicklung_zeilen("kein data.frame", ref, "R/F"), 0)
+  expect_null(ohne)
+  expect_null(vergleich_entwicklung_zeilen(NULL, ref, "R/F"))
+  expect_null(vergleich_entwicklung_zeilen("kein data.frame", ref, "R/F"))
 
   gesamt <- vergleich_entwicklung_zeilen(gematcht, ref, "R/F")
-  expect_length(gesamt, 1)
-  expect_match(gesamt, "Mittlere Entwicklung R/F (5 \u2192 6):", fixed = TRUE)
-  expect_match(gesamt, "(erwartet", fixed = TRUE)
+  expect_false(is.null(gesamt))
+  expect_match(gesamt$titel, "Mittlere Entwicklung R/F (5 \u2192 6)", fixed = TRUE)
+  expect_length(gesamt$zeilen, 1)
+  expect_match(gesamt$zeilen, "(erwartet", fixed = TRUE)
+  # das Urteil gehoert jetzt immer dazu
+  expect_match(gesamt$zeilen, "\u2013", fixed = TRUE)
 
+  # je Kohorte: eine Zeile je Kohorte, jede mit eigenem Urteil
   pro <- vergleich_entwicklung_zeilen(gematcht, ref, "R/F", pro_kohorte = TRUE)
-  expect_length(pro, 1)
-  expect_match(pro, "5a\u21926a", fixed = TRUE)
-  expect_match(pro, "5c\u21926c", fixed = TRUE)
+  expect_false(is.null(pro))
+  expect_length(pro$zeilen, 2)
+  expect_match(pro$zeilen[1], "5a\u21926a: ", fixed = TRUE)
+  expect_match(pro$zeilen[2], "5c\u21926c: ", fixed = TRUE)
+  expect_true(all(grepl("\u2013", pro$zeilen, fixed = TRUE)))
 
   # sehr kleine Kohorten werden nicht einzeln ausgewiesen
   klein <- gematcht[1:6, , drop = FALSE]
-  expect_length(vergleich_entwicklung_zeilen(klein, ref, "R/F", pro_kohorte = TRUE), 0)
+  expect_null(vergleich_entwicklung_zeilen(klein, ref, "R/F", pro_kohorte = TRUE))
   # die Gesamtuebersicht gibt es trotzdem
-  expect_length(vergleich_entwicklung_zeilen(klein, ref, "R/F"), 1)
+  expect_false(is.null(vergleich_entwicklung_zeilen(klein, ref, "R/F")))
 })
 
 test_that("die App zeigt die Innenansicht nur mit Schalter und Datei", {

@@ -1,21 +1,14 @@
-composeClass <- function(klassenstufe, klassenBuchstabe) {
-  # ohne Stufe UND ohne Buchstabe gibt es keine Klasse: sonst entstuende z. B.
-  # nur "c" (ohne Jahrgang) - im Elternbrief waere das "der NA. Klasse"
-  leer <- function(x) length(x) == 0 || is.na(x) || !nzchar(trimws(as.character(x)))
-  if(leer(klassenstufe) || leer(klassenBuchstabe)) {
-    return(NULL)
-  }
-  
-  return(paste0(klassenstufe, klassenBuchstabe))
-}
 
-checkCompleteInput <- function(rf, we) {
-  # genau eine Angabe leer
-  if(sum(is.na(c(rf, we))) == 1) {
-    return(TRUE)
-  }
-  return(FALSE)
-}
+
+# functions/functions.R
+#
+# Fachlogik der App: Pruefungen und Kategorien, Laden/Speichern, Vorlagen,
+# Sicherung, Briefauswahl und die Vergleichswerte (Blatt- und Urteilslogik).
+#
+# Grundordnung der Helfer-Dateien (siehe global.R):
+#   - functions/utils.R       technische Helfer (Pfade, Dateien, UI-Bausteine)
+#   - functions/formatierer.R Darstellung (Zahlen, Namen, Farben, Tabellen-Look)
+#   - functions/plot_functions.R, table2doc_.R, table2spreadsheet_.R: Ausgabe
 
 checkRfWe <- function(rf, we) {
   # kein check nötig -> hat nicht teilgenommen
@@ -125,28 +118,6 @@ getRecommendation <- function(kat) {
   return(recommendations[kat])
 }
 
-styleTable <- function(dt) {
-  # Die Spalten stehen im DT-Objekt unter x$data: das Objekt selbst hat keine
-  # Spaltennamen (colnames(dt) ist leer). Eine Pruefung auf colnames(dt) hat die
-  # Faerbung deshalb frueher immer uebersprungen. Ein data.frame kann DT nicht
-  # faerben und wird unveraendert zurueckgegeben.
-  if (is.data.frame(dt)) return(dt)
-  daten <- dt$x$data
-  if (is.null(daten) || !("Kat." %in% colnames(daten))) return(dt)
-
-  # Faerbe Zellen in der Tabelle basierend auf der Kategorie
-  dt <-
-    dt %>%
-    formatStyle(
-      'Kat.',
-      color = 'black',
-      backgroundColor = styleEqual(levels = lvls, 
-                                   values = cols
-      )
-    )
-  
-  return(dt)
-}
 
 #### Ausgabeordner ####
 # Die App kann als installierte Anwendung unter C:/ProgramData liegen. Dort
@@ -157,85 +128,6 @@ styleTable <- function(dt) {
 # Zwischenspeicher fuer den einmal ermittelten Ausgabeordner
 .ctest_env <- new.env(parent = emptyenv())
 
-# Prueft, ob ein Verzeichnis existiert (legt es an) und beschreibbar ist
-verzeichnis_sicherstellen <- function(pfad) {
-  if (is.null(pfad) || !nzchar(pfad)) return(FALSE)
-  if (!dir.exists(pfad)) {
-    dir.create(pfad, recursive = TRUE, showWarnings = FALSE)
-  }
-  if (!dir.exists(pfad)) return(FALSE)
-
-  # echter Schreibtest, weil Verzeichnisrechte unter Windows sonst taeuschen
-  probe <- file.path(pfad, paste0(".schreibtest_", Sys.getpid()))
-  ok <- suppressWarnings(file.create(probe))
-  if (isTRUE(ok)) unlink(probe)
-  isTRUE(ok)
-}
-
-# Benutzerordner als Ausweichziel (Dokumente des angemeldeten Benutzers)
-benutzer_ausgabeordner <- function() {
-  basis <- getOption("ctest.outdir.fallback")
-  if (is.null(basis)) {
-    basis <- ""
-    if (.Platform$OS.type == "windows") {
-      profil <- Sys.getenv("USERPROFILE")
-      kandidaten <- file.path(profil, c("Documents", "Dokumente"))
-      vorhanden <- kandidaten[dir.exists(kandidaten)]
-      if (length(vorhanden) > 0) basis <- vorhanden[1]
-      else if (nzchar(profil)) basis <- profil
-    }
-    if (!nzchar(basis)) basis <- path.expand("~")
-  }
-  file.path(basis, "C-Test Auswertung")
-}
-
-# Pfad in der Schreibweise des Systems. file.path() mischt die Trennzeichen,
-# weil Umgebungsvariablen wie USERPROFILE Backslashes enthalten und file.path()
-# mit "/" anhaengt ("C:\Users\.../Documents"). Fuer Hinweise, Meldungen und das
-# Oeffnen im Explorer oder in Word ist die native Form lesbarer.
-.pfad_nativ <- function(pfad) {
-  if (is.null(pfad)) return(pfad)
-  if (.Platform$OS.type == "windows") chartr("/", "\\", pfad) else pfad
-}
-
-# Ausgabeordner bestimmen: Vorgabe (Option) > Programmordner > Benutzerordner
-ctest_ausgabeordner <- function(neu = FALSE) {
-  vorgabe <- getOption("ctest.outdir")
-  if (!is.null(vorgabe)) {
-    if (!verzeichnis_sicherstellen(vorgabe)) {
-      stop("Ausgabeordner '", vorgabe, "' kann nicht angelegt werden. ",
-           "Bitte Option ctest.outdir pruefen.", call. = FALSE)
-    }
-    return(.pfad_nativ(vorgabe))
-  }
-
-  programmordner <- file.path(getwd(), "Auswertungen")
-
-  # Zwischenspeicher nur nutzen, wenn er zum aktuellen Programmordner passt
-  if (!neu && !is.null(.ctest_env$outdir) &&
-      identical(.ctest_env$programmordner, programmordner)) {
-    return(.ctest_env$outdir)
-  }
-
-  .ctest_env$programmordner <- programmordner
-
-  if (verzeichnis_sicherstellen(programmordner)) {
-    .ctest_env$outdir <- .pfad_nativ(programmordner)
-    return(.ctest_env$outdir)
-  }
-
-  benutzerordner <- benutzer_ausgabeordner()
-  if (verzeichnis_sicherstellen(benutzerordner)) {
-    message("Programmordner ist nicht beschreibbar - Ausgaben gehen nach: ",
-            .pfad_nativ(benutzerordner))
-    .ctest_env$outdir <- .pfad_nativ(benutzerordner)
-    return(.ctest_env$outdir)
-  }
-
-  stop("Es wurde kein beschreibbarer Ausgabeordner gefunden. Bitte pruefen, ",
-       "ob Schreibrechte fuer '", programmordner, "' oder '", benutzerordner,
-       "' bestehen.", call. = FALSE)
-}
 
 # Fuer Tests: zwischengespeicherten Ordner vergessen
 ausgabeordner_zuruecksetzen <- function() {
@@ -255,44 +147,6 @@ kurzlink_zuruecksetzen <- function() {
   invisible(TRUE)
 }
 
-# Dateipfad erstellen (Ordner wird angelegt und auf Schreibbarkeit geprueft)
-createFilePath <- function(filename, extension) {
-  outpath <- ctest_ausgabeordner()
-  if(is.null(filename)) {
-    return(outpath)
-  }
-  
-  fullpath <- .pfad_nativ(file.path(outpath, paste0(filename, ".", extension)))
-  return(fullpath)
-}
-
-# Ist eine Datei gerade gesperrt? Word und Excel halten geoeffnete Dokumente
-# exklusiv; das Anlegen der fertigen Datei scheitert dann mit "Permission denied"
-# - bei den Briefen erst nach dem Rendern, das Minuten dauert. Deshalb wird
-# vorher geprueft.
-#
-# 'oeffnen' ist fuer Tests da: damit laesst sich der gesperrte Fall ohne Word
-# ausloesen.
-.datei_gesperrt <- function(pfad, oeffnen = NULL) {
-  if (is.null(pfad) || length(pfad) == 0 || !nzchar(pfad)) return(FALSE)
-  if (!file.exists(pfad)) return(FALSE)
-
-  if (is.null(oeffnen)) oeffnen <- function(p) file(p, open = "r+b")
-  # das Scheitern ist hier der erwartete Fall - keine Warnung auf der Konsole
-  verbindung <- tryCatch(suppressWarnings(oeffnen(pfad)), error = function(e) NULL)
-  if (is.null(verbindung)) return(TRUE)
-
-  try(close(verbindung), silent = TRUE)
-  FALSE
-}
-
-# Klare Meldung statt der Meldung des Renderers, wenn die Zieldatei gesperrt ist
-.pruefe_datei_frei <- function(pfad, oeffnen = NULL) {
-  if (!.datei_gesperrt(pfad, oeffnen = oeffnen)) return(invisible(TRUE))
-  stop("Die Datei '", basename(pfad), "' ist gerade geöffnet oder ",
-       "schreibgeschützt (z. B. in Word). Bitte schließen und erneut starten.",
-       call. = FALSE)
-}
 
 #### Einstellungen des Benutzers ####
 #
@@ -330,10 +184,6 @@ einstellungen_pfad <- function() {
   .pfad_nativ(file.path(benutzer_ausgabeordner(), "einstellungen.txt"))
 }
 
-.als_wahr <- function(x) {
-  if (is.logical(x)) return(isTRUE(x))
-  tolower(trimws(as.character(x))) %in% c("ja", "true", "wahr", "1", "yes")
-}
 
 # Datei einlesen: fehlende Werte kommen aus den Standardwerten, unbekannte
 # Schluessel bleiben erhalten (siehe einstellungen_schreiben).
@@ -377,7 +227,7 @@ einstellungen_schreiben <- function(werte, pfad = einstellungen_pfad()) {
     }
   }
 
-  als_text <- function(name) {
+  einstellung_text <- function(name) {
     wert <- werte[[name]]
     if (is.null(wert) || length(wert) == 0) "" else as.character(wert)[1]
   }
@@ -396,7 +246,7 @@ einstellungen_schreiben <- function(werte, pfad = einstellungen_pfad()) {
     "#   Ungueltige Angaben werden beim Start ignoriert, dann gelten 71.3 und 65.",
     "#   Die Kategorien der Kinder sind fest und unabhaengig von diesen Werten.",
     "#",
-    sprintf("%s=%s", reihenfolge, vapply(reihenfolge, als_text, character(1)))
+    sprintf("%s=%s", reihenfolge, vapply(reihenfolge, einstellung_text, character(1)))
   )
 
   con <- file(pfad, open = "w", encoding = "UTF-8")
@@ -480,19 +330,23 @@ referenzwerte_zuruecksetzen <- function() {
   invisible(TRUE)
 }
 
-# Datei oder Ordner mit dem Standardprogramm oeffnen (fuer Tests ersetzbar)
-oeffne_datei <- function(pfad) {
-  utils::browseURL(pfad)
-  invisible(TRUE)
-}
 
-# Spaltennamen in tsv pruefen
-checkColumnNames <- function(df1, df2) {
-  # nur die fachlichen Spalten vergleichen: die Itemzahl kann in der einen
-  # Tabelle stehen und in der anderen fehlen (Altdateien)
-  spalten <- intersect(colnames(df1), .schueler_spalten)
-  if (length(spalten) == 0) spalten <- colnames(df1)
-  return(all(spalten %in% colnames(df2)))
+# Kennzahlen eines Vektors: Mittelwert, Median, Standardabweichung (auf eine
+# Stelle gerundet) und Anzahl der vorhandenen Werte. EINE Stelle fuer die
+# Rechen- und Rundungsregeln, damit Statistik-Tab, Stand-Brief und
+# Entwicklungsbrief dieselben Zahlen zeigen. Fehlende Werte werden ignoriert;
+# ohne Werte ist alles NA (in den Tabellen wird daraus "-"), die
+# Standardabweichung gibt es erst ab zwei Werten.
+.kennzahlen <- function(x, digits = 1) {
+  werte <- suppressWarnings(as.numeric(x))
+  werte <- werte[!is.na(werte)]
+  if (length(werte) == 0) {
+    return(list(n = 0L, mittel = NA_real_, median = NA_real_, sd = NA_real_))
+  }
+  list(n = length(werte),
+       mittel = round(mean(werte), digits),
+       median = round(stats::median(werte), digits),
+       sd = if (length(werte) < 2) NA_real_ else round(stats::sd(werte), digits))
 }
 
 # Median und Mittelwert berechnen und aufbereiten
@@ -516,17 +370,19 @@ createStatsText <- function(df, column, label, multiple = FALSE) {
   if (multiple && !"Klasse" %in% names(df)) multiple <- FALSE
 
   if(!multiple) {
-    l1 <- paste0("Mittelwert ", label, ": ", round(mean(df[[column]], na.rm = TRUE), 1), "±", round(sd(df[[column]], na.rm = TRUE), 1), "%")
-    l2 <- paste0("Median ", label, ": ", round(median(df[[column]], na.rm = TRUE), 1), "%")
+    k <- .kennzahlen(df[[column]])
+    l1 <- paste0("Mittelwert ", label, ": ", k$mittel, "±", k$sd, "%")
+    l2 <- paste0("Median ", label, ": ", k$median, "%")
     l3 <- paste0("Anzahl: ", dim(df)[1])
   } else {
-    stats <- 
-      df %>% 
-      summarise(mean = round(mean(.data[[column]], na.rm = TRUE), 1),
-                sd = round(sd(.data[[column]], na.rm = TRUE), 1), 
-                median = round(median(.data[[column]], na.rm = TRUE), 1), 
-                n = n(),
-                .by = "Klasse")
+    werte <- df[[column]]
+    klassen <- as.character(df$Klasse)
+    # Reihenfolge wie im Datensatz (nicht sortiert), Anzahl = Zeilen der Gruppe
+    stats <- do.call(rbind, lapply(unique(klassen), function(g) {
+      k <- .kennzahlen(werte[klassen == g])
+      data.frame(Klasse = g, mean = k$mittel, sd = k$sd, median = k$median,
+                 n = sum(klassen == g), stringsAsFactors = FALSE)
+    }))
     l1 <- paste0("Mittelwert ", label, ": ")
     l2 <- paste0("Median ", label, ": ")
     l3 <- paste0("Anzahl: ")
@@ -549,29 +405,7 @@ createStatsText <- function(df, column, label, multiple = FALSE) {
   
   return(kennzahlen(paste(l1, l2, l3, sep = "<br/>")))
   }
-# stat output vorbereiten
-createStatsOutput <- function(outputId) {
-  htmlOutput(outputId = outputId)
-}
 
-# input felder/button erstellen
-createInputField <- function(inputId, label, value = NA_integer_, min = 0, max = 100) {
-  numericInput(inputId = inputId, 
-               label = label, 
-               value = value, 
-               min = min, 
-               max = max) %>%
-    helper(content = inputId)
-}
-
-createActionButton <- function(inputId, label, icon) {
-  actionButton(inputId = inputId, 
-               label = label, 
-               style = 'margin-top:25px;
-                        margin-left:15px;
-                        margin-bottom:6px',
-               icon = icon)
-}
 
 addEntry <- function(df, name, klasse, rf, we, numItems) {
   rfPerc <- round(rf/numItems*100,1)
@@ -609,7 +443,7 @@ daten_fingerabdruck <- function(df) {
   spalten <- intersect(c(.schueler_spalten, .items_spalte), colnames(df))
   if (length(spalten) == 0) spalten <- colnames(df)
 
-  als_text <- function(x) {
+  fingerabdruck_text <- function(x) {
     if (is.numeric(x)) {
       ifelse(is.na(x), "NA", formatC(round(x, 6), format = "f", digits = 6))
     } else {
@@ -617,7 +451,7 @@ daten_fingerabdruck <- function(df) {
     }
   }
 
-  zeilen <- do.call(paste, c(lapply(df[spalten], als_text), list(sep = "\u001f")))
+  zeilen <- do.call(paste, c(lapply(df[spalten], fingerabdruck_text), list(sep = "\u001f")))
   paste(sort(zeilen, method = "radix"), collapse = "\u001e")
 }
 
@@ -651,6 +485,17 @@ sicherungsstand_zuruecksetzen <- function() {
   invisible(TRUE)
 }
 
+# Ist der Datenstand gegenueber der letzten Sicherung veraendert? Beim Schliessen
+# der Daten entscheidet das, ob "Vorher sichern" angeboten wird (siehe
+# .schliessen_dialog in utils.R) - und sichere_daten() nutzt dieselbe Pruefung.
+stand_geaendert <- function(df) {
+  if (is.null(df) || nrow(df) == 0) return(FALSE)
+  stand <- daten_fingerabdruck(df)
+  if (is.na(stand)) return(FALSE)
+  !(exists("gesicherter_stand", envir = .ctest_env, inherits = FALSE) &&
+      identical(.ctest_env$gesicherter_stand, stand))
+}
+
 # Datenstand als tsv sichern, falls er noch nicht gesichert ist.
 #
 # Wird vor dem Erstellen der Briefe aufgerufen: "speichern" ist ein eigener
@@ -671,9 +516,7 @@ sichere_daten <- function(df) {
   }
 
   stand <- daten_fingerabdruck(df)
-  if (!is.na(stand) &&
-      exists("gesicherter_stand", envir = .ctest_env, inherits = FALSE) &&
-      identical(.ctest_env$gesicherter_stand, stand)) {
+  if (!stand_geaendert(df)) {
     return(abbruch("Der Datenstand ist bereits gesichert."))
   }
 
@@ -687,7 +530,7 @@ sichere_daten <- function(df) {
       zaehler <- zaehler + 1
       ziel <- createFilePath(paste0(fn, "_", zaehler), "tsv")
     }
-    readr::write_tsv(df, file = ziel)
+    readr::write_tsv(.ohne_quelle(df), file = ziel)
     ziel
   }, error = function(e) {
     message("Sicherung des Datenstands fehlgeschlagen: ", conditionMessage(e))
@@ -721,12 +564,12 @@ saveData <- function(df, vergleich = NULL) {
   # Die tsv ist das Datenformat und fuehrt die Itemzahl mit (damit fehlende Werte
   # spaeter nachrechenbar sind). Word und Excel sind Berichte fuer die Lehrkraft -
   # dort steht die Itemzahl nicht.
-  write_tsv(df, 
+  write_tsv(.ohne_quelle(df), 
             file = createFilePath(fn, "tsv"))
   # die tsv liegt jetzt auf der Platte: eine Sicherung vor dem Briefversand
   # waere doppelt
   merke_gesicherten_stand(df)
-  bericht <- df[, setdiff(colnames(df), .items_spalte), drop = FALSE]
+  bericht <- df[, setdiff(colnames(df), c(.items_spalte, .quelle_spalte)), drop = FALSE]
   # Reihenfolge fuer Word und Excel: erst Klasse, dann Name alphabetisch
   # (die tsv behaelt die Eingabereihenfolge - sie ist das Datenformat).
   # order() folgt der Locale; app.R setzt "German", damit Umlaute richtig
@@ -804,13 +647,6 @@ vergleich_anhaengen <- function(xlsx_datei, docx_datei, vergleich) {
   return(hinweis)
 }
 
-checkInputFile <- function(inputFile) {
-  req(inputFile)
-  ext <- tools::file_ext(inputFile$datapath)
-  
-  validate(need(ext == "tsv", "Bitte tsv Datei auswählen"))
-  return(inputFile$datapath)
-}
 
 #### Robuste Eingabe: geladene Tabellen in die erwartete Form bringen ####
 # Die App erwartet acht Spalten (Reihenfolge wie in rv$df, siehe server.R).
@@ -820,6 +656,52 @@ checkInputFile <- function(inputFile) {
 .schueler_spalten <- c("Name", "Klasse", "WE-Wert", "WE-%", "R/F-Wert", "R/F-%",
                        "Kat.", "Empfehlung")
 .items_spalte <- "Items"
+# Herkunft jeder Zeile: der Schluessel der geladenen Datei oder "manuell".
+# Nur intern - sie gehoert nicht in die tsv und nicht in Berichte.
+# Klassen, die in mehreren geladenen Dateien vorkommen.
+#
+# Die STUFE allein sagt nichts: eine Stufe darf auf mehrere Dateien verteilt
+# sein (5a-5b in einer, 5c-5e in einer anderen) - das ist der Normalfall, wenn
+# Jahrgaenge in Teilen geladen werden. Doppelt ist erst eine KLASSE: dann stehen
+# dieselben Kinder zweimal in der Tabelle und alle Zahlen zaehlen doppelt.
+#
+# dateien: die Liste aus rv$dateien (je Eintrag $klassen).
+doppelte_klassen <- function(dateien) {
+  if (is.null(dateien) || length(dateien) == 0) return(character(0))
+  alle <- unlist(lapply(dateien, function(d) as.character(d$klassen)), use.names = FALSE)
+  alle <- alle[!.ist_leer(alle)]
+  sort(unique(alle[duplicated(alle)]))
+}
+
+# Wie viele Kinder stehen mehrfach in der Tabelle (gleicher Name und gleiche
+# Klasse)? Das ist die Folge doppelt geladener Klassen.
+kinder_doppelt <- function(df) {
+  if (is.null(df) || nrow(df) == 0) return(0L)
+  as.integer(sum(duplicated(paste(as.character(df$Name), as.character(df$Klasse)))))
+}
+
+# Dieselbe Zaehlung, aber je Klasse: Klassen, in denen dieselben Kinder
+# zweimal stehen (Name und Klasse gleich). Nur dann zaehlen die Kinder
+# wirklich doppelt - zwei Dateien mit gleichnamiger Klasse aus
+# verschiedenen Jahren (6a 2025 und 6a 2026) enthalten andere Kinder und
+# sind kein Fehler. Die tsv fuehrt kein Jahr, unterscheiden laesst sich das
+# nur an den Kindern selbst.
+klassen_mit_doppelten_kindern <- function(df, kandidaten) {
+  if (is.null(df) || nrow(df) == 0 || length(kandidaten) == 0) {
+    return(character(0))
+  }
+  klassen <- as.character(df$Klasse)
+  namen <- as.character(df$Name)
+  kandidaten[vapply(kandidaten, function(k) {
+    any(duplicated(namen[klassen == k]))
+  }, logical(1))]
+}
+.quelle_spalte <- "Quelle"
+
+# Datenrahmen ohne die Herkunftsspalte (fuer tsv, Word und Excel)
+.ohne_quelle <- function(df) {
+  df[, setdiff(colnames(df), .quelle_spalte), drop = FALSE]
+}
 .alle_spalten <- c(.schueler_spalten, .items_spalte)
 
 # Namen vergleichbar machen: Kleinschreibung, Umlaute aufloesen
@@ -1026,12 +908,12 @@ pruefe_schuelerdaten <- function(df, quelle = "") {
 
 # Text in Zahlen wandeln; deutsches Komma erlaubt, Unlesbares wird NA
 .zahlen_konvertieren <- function(ausgabe) {
-  als_zahl <- function(x) {
+  parse_zahl <- function(x) {
     suppressWarnings(as.numeric(gsub(",", ".", gsub("[^0-9,.-]", "", as.character(x)),
                                      fixed = TRUE)))
   }
   for (spalte in c("WE-Wert", "WE-%", "R/F-Wert", "R/F-%", .items_spalte)) {
-    ausgabe[[spalte]] <- als_zahl(ausgabe[[spalte]])
+    ausgabe[[spalte]] <- parse_zahl(ausgabe[[spalte]])
   }
   ausgabe[["Klasse"]][is.na(ausgabe[["Klasse"]])] <- ""
   ausgabe[["Name"]] <- trimws(ausgabe[["Name"]])
@@ -1291,7 +1173,7 @@ pruefe_schuelerdaten <- function(df, quelle = "") {
   # nicht teilgenommen -> Kategorie "0"
   if (spalten_da) neu[keine_angaben] <- "0"
 
-  leer_kat <- is.na(ausgabe[["Kat."]]) | !nzchar(trimws(ausgabe[["Kat."]]))
+  leer_kat <- .ist_leer(ausgabe[["Kat."]])
   fuellbar <- leer_kat & !is.na(neu)
   if (any(fuellbar)) {
     ausgabe[["Kat."]][fuellbar] <- neu[fuellbar]
@@ -1318,8 +1200,7 @@ pruefe_schuelerdaten <- function(df, quelle = "") {
     }
   }
 
-  leer_empfehlung <- is.na(ausgabe[["Empfehlung"]]) |
-    !nzchar(trimws(ausgabe[["Empfehlung"]]))
+  leer_empfehlung <- .ist_leer(ausgabe[["Empfehlung"]])
   if (any(leer_empfehlung)) {
     empfehlung <- as.character(getRecommendation(ausgabe[["Kat."]]))
     fuellbar <- leer_empfehlung & !is.na(empfehlung)
@@ -1334,12 +1215,6 @@ pruefe_schuelerdaten <- function(df, quelle = "") {
   ausgabe
 }
 
-# Hinweise einer geladenen Tabelle (leer, wenn keine)
-lade_hinweise <- function(df) {
-  hinweise <- attr(df, "hinweise")
-  if (is.null(hinweise)) return(character(0))
-  as.character(hinweise)
-}
 
 loadData <- function(inputFile) {
   pfad <- checkInputFile(inputFile)
@@ -1360,7 +1235,7 @@ loadData <- function(inputFile) {
 
 convert_kat_meaning <- function(kat, table_path = vorlagen_quelle("ergebnisse.xlsx")) {
   # ohne Kategorie (z. B. Kind ohne Werte) gibt es keinen Text - nicht abbrechen
-  if (length(kat) == 0 || is.na(kat) || !nzchar(trimws(as.character(kat)))) {
+  if (length(kat) == 0 || .ist_leer(kat)) {
     return("")
   }
 
@@ -1500,12 +1375,6 @@ convert_kat_meaning <- function(kat, table_path = vorlagen_quelle("ergebnisse.xl
   data.frame(von = von[mehrfach], bis = bis[mehrfach], spalte = spalte)
 }
 
-# Spaltenbreiten (in cm): die Kategorie-Spalte schmal, der Rest teilt sich die
-# Textbreite.
-.ergebnis_breiten <- function(spalten, gesamt = 16) {
-  if (spalten <= 1) return(gesamt)
-  c(2.0, rep((gesamt - 2.0) / (spalten - 1), spalten - 1))
-}
 
 # Ergebnistabelle des Elternbriefes als echte Word-Tabelle (frueher ein Bild).
 # Inhalt, Ueberschriften und verbundene Zellen kommen aus ergebnisse.xlsx.
@@ -1583,8 +1452,8 @@ vorlagen_aufraeumen <- function(ziel, versuche = 3, pause = 0.2) {
 # template.docx - die Datei logo.png wird von keiner Vorlage verwendet.
 #
 # Die Ergebnistabelle des Elternbriefes ist eine echte Word-Tabelle und wird aus
-# ergebnisse.xlsx erzeugt; das frueher anpassbare Bild table.png kommt im Brief
-# nicht mehr vor und ist deshalb nicht mehr Teil dieser Liste.
+# ergebnisse.xlsx erzeugt; das frueher anpassbare Bild table.png gibt es nicht
+# mehr (Datei entfallen) und ist deshalb nicht mehr Teil dieser Liste.
 .vorlagen_dateien <- c("template.docx", "ergebnisse.xlsx")
 
 # Zentraler Ordner mit den mitgelieferten, anpassbaren Dateien (im App-Ordner).
@@ -1749,12 +1618,6 @@ elternbrief_vorbereiten <- function(quelle = file.path(getwd(), "elternbrief")) 
                        zentral = c("template.docx", "ergebnisse.xlsx"))
 }
 
-# Zwischendateien von knitr aus der Arbeitskopie entfernen
-knit_reste_entfernen <- function(vorlage) {
-  rest <- file.path(vorlage, "elternbrief.knit.md")
-  if (fs::file_exists(rest)) fs::file_delete(rest)
-  invisible(TRUE)
-}
 
 compose_letter <- function(name, klasse, kat, lehrername, signatur = "",
                            qrLink = NULL,
@@ -1775,39 +1638,6 @@ combine_letters <- function(rdocx, temp_path, out_path = NULL, umbruch = TRUE) {
   return(rdocx)
 }
 
-# Link ueber tinyurl kuerzen. Ohne Internet (oder bei Fehlern) wird NULL
-# zurueckgegeben - der Aufrufer arbeitet dann mit dem Originallink weiter.
-# Erfolgreiche Kuerzungen werden zwischengespeichert, weil tinyurl die Anzahl
-# der Anfragen begrenzt.
-shorten_url <- function(long_url, timeout_sek = 5) {
-  if (is.null(long_url) || !nzchar(long_url)) return(NULL)
-  if (!grepl("^https?://", long_url)) {
-    long_url <- paste0("https://", long_url)
-  }
-
-  zwischengespeichert <- .ctest_env$tinyLink
-  if (!is.null(zwischengespeichert) && identical(zwischengespeichert$raw, long_url)) {
-    return(zwischengespeichert$link)
-  }
-
-  kurz <- tryCatch({
-    req <- httr2::request("https://tinyurl.com/api-create.php") |>
-      httr2::req_url_query(url = long_url) |>
-      httr2::req_timeout(timeout_sek) |>
-      httr2::req_perform()
-    httr2::resp_body_string(req)
-  }, error = function(e) NULL)
-
-  # tinyurl antwortet bei Problemen mit einer Fehlermeldung statt einer URL
-  if (is.null(kurz) || !is.character(kurz) || !grepl("^https?://", kurz)) {
-    message("Link konnte nicht gekuerzt werden (kein Internet?). ",
-            "Es wird der Originallink verwendet.")
-    return(NULL)
-  }
-
-  .ctest_env$tinyLink <- list(link = kurz, raw = long_url)
-  return(kurz)
-}
 
 generate_qrcode <- function(qrLink, zielordner = tempdir()) {
   # ohne Link: zwei NA-Felder statt eines nackten NA - so liefert auch dieser
@@ -1866,7 +1696,7 @@ brief_klassen <- function(df) {
 # Rueckgabe: benannter Vektor (Anzeigetext = Name, Schluessel = Wert).
 brief_auswahl_liste <- function(klassen) {
   klassen <- sort(unique(as.character(klassen)))
-  klassen <- klassen[!is.na(klassen) & nzchar(trimws(klassen))]
+  klassen <- klassen[!.ist_leer(klassen)]
   if (length(klassen) == 0) return(stats::setNames(character(0), character(0)))
 
   jahre <- brief_jahrgang(klassen)
@@ -1884,7 +1714,7 @@ brief_auswahl_liste <- function(klassen) {
 # (bei 5a/5b/6a also 6a, bei 5a/5b/5c also 5a).
 brief_vorauswahl <- function(klassen) {
   klassen <- sort(unique(as.character(klassen)))
-  klassen <- klassen[!is.na(klassen) & nzchar(trimws(klassen))]
+  klassen <- klassen[!.ist_leer(klassen)]
   if (length(klassen) == 0) return(NULL)
 
   jahre <- brief_jahrgang(klassen)
@@ -1952,7 +1782,7 @@ brief_daten_buchstaben <- function(df, buchstaben) {
 # der Buchstabe; ein Jahr allein laesst sich nicht vergleichen.
 brief_kohorten_liste <- function(klassen, stufe_alt = NULL, stufe_neu = NULL) {
   klassen <- sort(unique(as.character(klassen)))
-  klassen <- klassen[!is.na(klassen) & nzchar(trimws(klassen))]
+  klassen <- klassen[!.ist_leer(klassen)]
   if (length(klassen) == 0) return(stats::setNames(character(0), character(0)))
 
   buchstaben <- gsub("[^A-Za-z]", "", klassen)
@@ -2293,10 +2123,12 @@ vergleich_entwicklung_satz <- function(urteil, was = NULL) {
          de_vz(urteil$erwartet), "; die Entwicklung liegt ", urteil$bewertung, ".")
 }
 
-# Zeile(n) fuer den Statistik-Tab. urteile ist eine benannte Liste von
-# Entwicklung-Urteilen (Name = Beschriftung wie "5c->6c"; ohne Namen steht die
-# Zeile fuer die Gesamtuebersicht).
-vergleich_entwicklung_zeile <- function(urteile, kennzahl) {
+# Block fuer den Statistik-Tab: eine Ueberschrift und je Wert eine Zeile mit
+# eigenem Urteil (Kohortenlabel vorn, Urteil hinten). So bleibt das Urteil bei
+# seinem Wert - auch wenn die Kohorten gegenlaeufig sind (eine ueber, eine unter
+# der Erwartung). Ohne Namen entsteht eine Zeile fuer die Gesamtuebersicht.
+# Rueckgabe: list(titel, zeilen) oder NULL, wenn nichts zu zeigen ist.
+vergleich_entwicklung_block <- function(urteile, kennzahl) {
   if (length(urteile) == 0) return(NULL)
   namen <- names(urteile)
   behalten <- !vapply(urteile, is.null, logical(1))
@@ -2304,16 +2136,15 @@ vergleich_entwicklung_zeile <- function(urteile, kennzahl) {
   namen <- if (is.null(namen)) rep("", length(urteile)) else namen[behalten]
   if (length(urteile) == 0) return(NULL)
 
-  teile <- vapply(seq_along(urteile), function(i) {
+  zeilen <- vapply(seq_along(urteile), function(i) {
     u <- urteile[[i]]
-    text <- paste0(de_vz(u$delta), " (erwartet ", de_vz(u$erwartet), ")")
-    if (!is.na(namen[i]) && nzchar(namen[i])) text <- paste0(text, "; ", namen[i])
-    text
+    bezug <- if (!is.na(namen[i]) && nzchar(namen[i])) paste0(namen[i], ": ") else ""
+    paste0(bezug, de_vz(u$delta), " (erwartet ", de_vz(u$erwartet), ") \u2013 ",
+           u$bewertung)
   }, character(1))
-  bewertungen <- unique(vapply(urteile, function(u) u$bewertung, character(1)))
-  paste0("Mittlere Entwicklung ", kennzahl, " (5 \u2192 6): ",
-         paste(teile, collapse = ", "),
-         if (length(bewertungen) == 1) paste0(" \u2013 ", bewertungen) else "")
+
+  list(titel = paste0("Mittlere Entwicklung ", kennzahl, " (5 \u2192 6)"),
+       zeilen = unname(zeilen))
 }
 
 # Zeilen fuer den Statistik-Tab: je Klasse der Median-Vergleich (der Median ist
@@ -2348,22 +2179,23 @@ vergleich_klassen_zeilen <- function(df, ref, kennzahl = NULL) {
   zeilen
 }
 
-# Zeilen fuer den Statistik-Tab: mittlere Entwicklung gegen die Erwartung.
-# gematcht ist die Zuordnung (cohort_gematcht). pro_kohorte = FALSE ergibt eine
+# Block fuer den Statistik-Tab: mittlere Entwicklung gegen die Erwartung.
+# gematcht ist die Zuordnung (cohort_gematcht). pro_kohorte = FALSE ergibt die
 # Zeile ueber alle zugeordneten Kinder, TRUE eine je Kohorte (Buchstabe).
+# Rueckgabe: list(titel, zeilen) oder NULL.
 vergleich_entwicklung_zeilen <- function(gematcht, ref, kennzahl, pro_kohorte = FALSE) {
   if (is.null(ref) || is.null(gematcht) || !is.data.frame(gematcht) ||
       nrow(gematcht) == 0) {
-    return(character(0))
+    return(NULL)
   }
   spalte_alt <- paste0(if (kennzahl == "R/F") "RF" else "WE", "_Alt")
   spalte_neu <- paste0(if (kennzahl == "R/F") "RF" else "WE", "_Neu")
-  if (!all(c(spalte_alt, spalte_neu) %in% names(gematcht))) return(character(0))
+  if (!all(c(spalte_alt, spalte_neu) %in% names(gematcht))) return(NULL)
 
   start <- suppressWarnings(as.numeric(gematcht[[spalte_alt]]))
   ziel <- suppressWarnings(as.numeric(gematcht[[spalte_neu]]))
   ok <- !is.na(start) & !is.na(ziel)
-  if (!any(ok)) return(character(0))
+  if (!any(ok)) return(NULL)
 
   urteil_aus <- function(start_v, ziel_v) {
     vergleich_entwicklung_urteil(ref, mean(start_v), mean(ziel_v - start_v), kennzahl,
@@ -2372,10 +2204,9 @@ vergleich_entwicklung_zeilen <- function(gematcht, ref, kennzahl, pro_kohorte = 
 
   if (!pro_kohorte) {
     u <- urteil_aus(start[ok], ziel[ok])
-    if (is.null(u)) return(character(0))
+    if (is.null(u)) return(NULL)
     # leerer Name = Zeile fuer die Gesamtuebersicht (list("" = u) ist in R nicht erlaubt)
-    zeile <- vergleich_entwicklung_zeile(stats::setNames(list(u), ""), kennzahl)
-    return(if (is.null(zeile)) character(0) else zeile)
+    return(vergleich_entwicklung_block(stats::setNames(list(u), ""), kennzahl))
   }
 
   # je Kohorte (Buchstabe), Beschriftung wie im Brief (5c -> 6c)
@@ -2395,9 +2226,8 @@ vergleich_entwicklung_zeilen <- function(gematcht, ref, kennzahl, pro_kohorte = 
     }
     urteile[[beschriftung]] <- u
   }
-  if (length(urteile) == 0) return(character(0))
-  zeile <- vergleich_entwicklung_zeile(urteile, kennzahl)
-  if (is.null(zeile)) character(0) else zeile
+  if (length(urteile) == 0) return(NULL)
+  vergleich_entwicklung_block(urteile, kennzahl)
 }
 
 # Zwei Anzeigespalten fuer die Uebersichtstabelle (Innenansicht je Kind).
@@ -2440,12 +2270,8 @@ create_letters <- function(df, lehrername, signatur = "", qrLink = NULL,
                            fortschritt = NULL) {
   # fortschritt(anteil, text) meldet den Stand an die Oberflaeche (0 bis 1).
   # Ohne Funktion passiert nichts - die Konsole bekommt weiterhin message().
-  melde <- function(anteil, text) {
-    if (is.function(fortschritt)) {
-      fortschritt(max(0, min(1, anteil)), text)
-    }
-    invisible(NULL)
-  }
+  # Der Melder selbst steht in functions/infobrief.R (.fortschritt_melder).
+  melde <- .fortschritt_melder(fortschritt)
 
   # klare Meldung statt kryptischem Fehler, wenn Spalten fehlen
   fehlend <- setdiff(c("Name", "Klasse", "Kat."), colnames(df))
@@ -2497,7 +2323,8 @@ create_letters <- function(df, lehrername, signatur = "", qrLink = NULL,
     message("Composing letter for ",  df$name[i], " ", i, "/", anzahl)
     melde((i - 1) / anzahl,
           paste0("Brief ", i, " von ", anzahl, ": ", df$name[i]))
-    ok <- tryCatch({
+    # Fehler werden gesammelt: der Handler gibt das Ergebnis zurueck (kein <<-)
+    ergebnis <- tryCatch({
       compose_letter(name = df$name[i],
                      klasse = parse_number(df$klasse[i]),
                      kat = df$kat[i],
@@ -2506,13 +2333,15 @@ create_letters <- function(df, lehrername, signatur = "", qrLink = NULL,
                      output = tmp,
                      qrLink = qrLink,
                      vorlage = vorlage)
-      TRUE
-    }, error = function(e) {
-      fehler <<- c(fehler, paste0(df$name[i], ": ", conditionMessage(e)))
+      list(ok = TRUE)
+    }, error = function(e) list(ok = FALSE, meldung = conditionMessage(e)))
+
+    ok <- ergebnis$ok
+    if (!ok) {
+      fehler <- c(fehler, paste0(df$name[i], ": ", ergebnis$meldung))
       message("Elternbrief fuer ", df$name[i], " konnte nicht erstellt werden: ",
-              conditionMessage(e))
-      FALSE
-    })
+              ergebnis$meldung)
+    }
 
     if (ok) brief_pfade <- c(brief_pfade, tmp)
     knit_reste_entfernen(vorlage)
@@ -2540,5 +2369,3 @@ create_letters <- function(df, lehrername, signatur = "", qrLink = NULL,
               erstellt = length(brief_pfade),
               fehler = fehler))
 }
-
-

@@ -1,9 +1,7 @@
-library(dplyr)
-library(ggplot2)
-library(forcats)
-library(tidyr)
-
 # Diagramme fuer den Statistik-Tab.
+#
+# Die Pakete werden zentral in global.R aus req.txt geladen - hier keine
+# eigenen library()-Aufrufe.
 #
 # Das Entwicklungsdiagramm nutzt die Zuordnung aus functions/cohort.R - also
 # dieselben Paare (inklusive manuell bestaetigter) wie der Lehrkraefte-Infobrief.
@@ -86,6 +84,20 @@ createPlot<- function(df, x, fill, xlab, bins = 30, allCombined = TRUE,
   if(!allCombined & !type %in% c("Entwicklung", "Verlauf")) {
     p <- p + 
       facet_wrap(~Klasse, ncol = 1) 
+    # Bei vielen Klassen bleibt alles untereinander (so lassen sich die
+    # Verteilungen optisch trennen), aber jedes Panel ist dann flach:
+    # nur zwei y-Marken (Null und oberes Ende) und der Achsentitel nur
+    # einmal statt in jedem Panel.
+    klassen <- unique(as.character(df$Klasse))
+    if (length(klassen) > 2) {
+      p <- p +
+        scale_y_continuous(breaks = function(x) {
+          oben <- max(x, na.rm = TRUE)
+          if (!is.finite(oben) || oben <= 0) 0 else c(0, ceiling(oben))
+        }) +
+        labs(y = NULL, subtitle = "Anzahl") +
+        theme(plot.subtitle = element_text(hjust = 0, size = 11))
+    }
   }
   
   return(p)

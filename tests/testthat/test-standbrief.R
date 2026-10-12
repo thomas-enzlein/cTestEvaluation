@@ -368,6 +368,63 @@ test_that("der Stand-Brief entsteht als EINE docx mit einer Seite je Klasse", {
   })
 })
 
+test_that("die Innenansicht im Stand-Brief steht je Kennzahl in einem eigenen Absatz", {
+  skip_if_not(rmarkdown::pandoc_available(), "pandoc nicht gefunden")
+
+  withr::with_tempdir({
+    dir.create("infobrief")
+    dateien <- list.files(file.path(projekt_root, "infobrief"), full.names = TRUE)
+    file.copy(dateien, "infobrief", recursive = TRUE)
+    dir.create("vorlagen")
+    file.copy(list.files(file.path(projekt_root, "vorlagen"), full.names = TRUE),
+              "vorlagen", recursive = TRUE)
+    withr::local_options(ctest.outdir.fallback = file.path(getwd(), "benutzer"))
+
+    # eine Klasse mit genug Kindern fuer den Klassenvergleich (ab 10)
+    n <- 12
+    df <- data.frame(
+      Name = paste0("Innen", seq_len(n), ", Test"), Klasse = "5c",
+      `WE-Wert` = 30, `WE-%` = seq(60, 88, length.out = n),
+      `R/F-Wert` = 24, `R/F-%` = seq(50, 80, length.out = n),
+      Kat. = "3C", Empfehlung = "Test", check.names = FALSE, stringsAsFactors = FALSE)
+
+    referenz <- vergleich_referenz()
+    expect_false(is.null(referenz))
+
+    ergebnis <- NULL
+    utils::capture.output(
+      suppressMessages(ergebnis <- create_standbrief(df, absender = "Test, Tina",
+                                                     vergleich = referenz))
+    )
+
+    text <- stand_docx_text(ergebnis$datei)
+    xml <- stand_docx_xml(ergebnis$datei)
+    expect_match(text, "Klassen-Median WE", fixed = TRUE)
+    expect_match(text, "Klassen-Median R/F", fixed = TRUE)
+    # Wortschatz zuerst
+    expect_lt(regexpr("Klassen-Median WE", text, fixed = TRUE)[1],
+              regexpr("Klassen-Median R/F", text, fixed = TRUE)[1])
+
+    # jeder Satz in einem eigenen Absatz
+    absaetze_mit <- function(x, muster) {
+      bloecke <- regmatches(x, gregexpr("<w:p[ >].*?</w:p>", x, perl = TRUE))[[1]]
+      which(grepl(muster, bloecke, fixed = TRUE))
+    }
+    p_we <- absaetze_mit(xml, "Klassen-Median WE")
+    p_rf <- absaetze_mit(xml, "Klassen-Median R/F")
+    expect_gt(length(p_we), 0)
+    expect_gt(length(p_rf), 0)
+    expect_length(intersect(p_we, p_rf), 0)
+
+    # ohne Referenz bleibt der Abschnitt leer
+    ohne <- NULL
+    utils::capture.output(
+      suppressMessages(ohne <- create_standbrief(df, absender = "Test, Tina"))
+    )
+    expect_false(grepl("Klassen-Median", stand_docx_text(ohne$datei), fixed = TRUE))
+  })
+})
+
 test_that("die Briefart steuert, welcher Brief erstellt wird", {
   withr::with_tempdir({
     dir.create("Auswertungen")

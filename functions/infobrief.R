@@ -6,74 +6,11 @@
 #   - Der Fliesstext steht in infobrief/kopf.Rmd, infobrief/abschnitt.Rmd und
 #     infobrief/abschluss.Rmd (Markdown wie beim Elternbrief, mit Inline-R fuer
 #     die Zahlen).
-#   - Hier in R stehen nur: Zahlen (deutsches Format), Grammatik-Hilfen, die
-#     farbigen Wert-Bausteine und die Word-Tabellen.
+#   - Hier in R stehen nur noch die Word-Tabellen und die Abschnitts-Logik;
+#     Zahlen (deutsches Format), Grammatik-Hilfen und die farbigen
+#     Wert-Bausteine liegen in functions/formatierer.R.
 #   - Pro Klassenbuchstabe wird ein Abschnitt gerendert; die Teile werden zu
 #     einer docx zusammengefuegt (Muster wie beim Elternbrief: rendern + merge).
-
-# Zahl im deutschen Format (Dezimalkomma). Fehlende Werte werden einzeln zu "-":
-# sonst stuende in einer Tabelle mit teils fehlenden Werten "NA" (z. B. die
-# Standardabweichung einer Gruppe mit nur einem Kind mit Werten).
-de_zahl <- function(x, digits = 1) {
-  if (length(x) == 0) return("-")
-  ifelse(is.na(x), "-",
-         formatC(x, format = "f", digits = digits, decimal.mark = ","))
-}
-
-# Zahl mit Vorzeichen (fuer Veraenderungen)
-de_vz <- function(x, digits = 1) {
-  if (length(x) == 0) return("-")
-  ifelse(is.na(x), "-", paste0(ifelse(x > 0, "+", ""), de_zahl(x, digits)))
-}
-
-# "1 Kind" / "3 Kinder"
-kind_text <- function(n) {
-  ifelse(n == 1, "1 Kind", paste0(n, " Kinder"))
-}
-
-# "1 Kind" / "3 Kindern" (Dativ)
-kind_dativ <- function(n) {
-  ifelse(n == 1, "1 Kind", paste0(n, " Kindern"))
-}
-
-# Ab dieser Groesse werden Veraenderungen zusaetzlich fett dargestellt
-.infobrief_fett_ab <- 20
-.infobrief_gruen <- "#1E7B34"
-.infobrief_rot <- "#B00020"
-
-# Aufzaehlung von Kindern: zwischen den Kindern Semikolon, damit das Komma im
-# Namen ("Dahlbruch, Colin") eindeutig bleibt.
-namen_liste <- function(x) {
-  x <- x[!is.na(x) & nzchar(x)]
-  paste(sort(x), collapse = "; ")
-}
-
-# Ein Wert als farbiger (und ab 20 zusaetzlich fetter) Textbaustein
-wert_run <- function(wert, einheit = " %") {
-  if (length(wert) == 0 || is.na(wert)) return(officer::ftext("-", officer::fp_text()))
-  officer::ftext(paste0(de_vz(wert), einheit),
-                 officer::fp_text(color = if (wert > 0) .infobrief_gruen else .infobrief_rot,
-                                  bold = abs(wert) >= .infobrief_fett_ab))
-}
-
-# Absatz "Titel: Name (+x %), Name (-y %)." mit farbigen Werten.
-# (fp_text akzeptiert keine Vektoren, deshalb Run fuer Run.)
-liste_absatz <- function(titel, tabelle, einheit = " %", spalte = "\u0394 R/F") {
-  if (is.null(tabelle) || nrow(tabelle) == 0) return(NULL)
-  runs <- list(officer::ftext(paste0(titel, ": "), officer::fp_text()))
-  for (i in seq_len(nrow(tabelle))) {
-    if (i > 1) runs <- c(runs, list(officer::ftext(", ", officer::fp_text())))
-    runs <- c(runs, list(
-      officer::ftext(tabelle$Name[i], officer::fp_text()),
-      officer::ftext(" (", officer::fp_text()),
-      wert_run(tabelle[[spalte]][i], einheit),
-      officer::ftext(")", officer::fp_text())
-    ))
-  }
-  runs <- c(runs, list(officer::ftext(".", officer::fp_text())))
-  do.call(officer::fpar, c(runs, list(fp_p = officer::fp_par(padding.top = 4,
-                                                             padding.bottom = 4))))
-}
 
 # Word-Tabelle im einheitlichen Look.
 # - feste Spaltenbreiten (Summe <= 16 cm, sonst laufen die Tabellen aus der
@@ -209,15 +146,6 @@ tabelle_lese <- function(df, unter_norm = NULL) {
 .breiten_kat <- c(6.2, 5.0, 2.4, 2.4)           # 16,0 cm, 4 Spalten
 .breiten_werte <- c(7.0, 3.0, 3.0, 3.0)         # 16,0 cm, 4 Spalten
 
-# Kategorie-Farbe wie in der App, im Excel-Export und im Word-Dokument
-# (cols/lvls stehen in global.R). Nicht teilgenommen ("0") bleibt ohne Farbe.
-.kat_farbe <- function(kat) {
-  kat <- trimws(as.character(kat))
-  if (!exists("lvls", inherits = TRUE) || !exists("cols", inherits = TRUE)) {
-    return(rep(NA_character_, length(kat)))
-  }
-  unname(cols[match(kat, lvls)])
-}
 
 # Farbe je Gruppe der Uebersicht - dieselbe Skala wie die Kategorien der Kinder
 .stand_gruppen_farben <- c("darkgreen", "#FFA500", "#CD8500", "orangered",
@@ -235,14 +163,14 @@ tabelle_lese <- function(df, unter_norm = NULL) {
 # ein kleiner leerer Absatz mit Vorlauf bzw. Nachlauf (optional mit Titelzeile).
 .tabellen_abstand <- function(ft, oben = 10, unten = 10, titel = NULL) {
   if (is.null(ft)) return(NULL)
-  leer <- function(...) {
+  leerer_absatz <- function(...) {
     officer::fpar(officer::ftext(" ", officer::fp_text(font.size = 2)),
                   fp_p = officer::fp_par(...))
   }
   teile <- c(if (!is.null(titel)) list(officer::fpar(
                 officer::ftext(titel, officer::fp_text(bold = TRUE)),
                 fp_p = officer::fp_par(padding.top = 14, padding.bottom = 2))),
-             list(leer(padding.top = oben), ft, leer(padding.bottom = unten)))
+             list(leerer_absatz(padding.top = oben), ft, leerer_absatz(padding.bottom = unten)))
   do.call(block_list, teile)
 }
 
@@ -626,16 +554,40 @@ infobrief_vorbereiten <- function(quelle = file.path(getwd(), "infobrief")) {
   vorlagen_vorbereiten(quelle, "infobrief")
 }
 
-# Kopf, Abschnitte und Abschluss zu EINEM Rmd zusammensetzen.
-# Die drei Dateien bleiben reine Inhalts-Fragmente (dort steht der Fliesstext,
-# editierbar); Kopfzeile/Format kommen aus der Vorlage. So entsteht ein einziges
-# Dokument - ohne eingebettete Teildokumente (die sonst eigene
-# Abschnittseigenschaften mitbringen und leere Seiten erzeugen).
-.infobrief_rmd_bauen <- function(vorlage, daten, datei) {
-  fragment <- function(name) readLines(file.path(vorlage, paste0(name, ".Rmd")),
-                                       warn = FALSE, encoding = "UTF-8")
-  setze_d <- function(ausdruck) c("```{r, echo=FALSE}", ausdruck, "```", "")
+# --- gemeinsame Bausteine fuer alle Briefe ----------------------------------
+# Entwicklungsbrief und Stand-Brief (und der Elternbrief in functions.R) laufen
+# gleich ab: Vorlagenkopie, Fragmente aus dem Vorlagenordner, ein R-Chunk je
+# Datensatz, eine Rmd-Datei, ein pandoc-Lauf. Diese Helfer halten das an einer
+# Stelle; die Brief-spezifische Reihenfolge steht in den duennen Bauern darunter.
 
+# fortschritt(anteil, text) meldet den Stand an die Oberflaeche (0 bis 1)
+.fortschritt_melder <- function(fortschritt) {
+  function(anteil, text) {
+    if (is.function(fortschritt)) {
+      fortschritt(max(0, min(1, anteil)), text)
+    }
+    invisible(NULL)
+  }
+}
+
+# Vorlagenordner fuer einen Brief: Kopie anlegen und Reste entfernen. Das
+# Aufraeumen (on.exit) muss der Aufrufer registrieren - es laeuft in seinem Frame.
+.brief_vorlage_bereit <- function() {
+  vorlage <- infobrief_vorbereiten()
+  rest <- file.path(vorlage, "infobrief.knit.md")
+  if (fs::file_exists(rest)) fs::file_delete(rest)
+  vorlage
+}
+
+# Rmd-Baustein aus dem Vorlagenordner bzw. R-Chunk, der "d" im Frame setzt
+.brief_fragment <- function(vorlage, name) {
+  readLines(file.path(vorlage, paste0(name, ".Rmd")), warn = FALSE, encoding = "UTF-8")
+}
+.brief_setze_d <- function(ausdruck) c("```{r, echo=FALSE}", ausdruck, "```", "")
+
+# Preamble + Teile als eine Rmd-Datei schreiben. Bewusst EIN Dokument: eingebettete
+# Teildokumente bringen eigene Abschnittseigenschaften mit und erzeugen leere Seiten.
+.brief_rmd_bauen <- function(teile, datei) {
   inhalt <- c(
     "---",
     "output: officedown::rdocx_document",
@@ -647,16 +599,37 @@ infobrief_vorbereiten <- function(quelle = file.path(getwd(), "infobrief")) {
     "knitr::opts_chunk$set(echo = FALSE)",
     "```",
     "",
-    setze_d("d <- daten$kopf"),
-    fragment("kopf"),
-    unlist(lapply(seq_along(daten$abschnitte), function(i) {
-      c(setze_d(paste0("d <- daten$abschnitte[[", i, "]]")), fragment("abschnitt"))
-    })),
-    setze_d("d <- daten$abschluss"),
-    fragment("abschluss")
+    teile
   )
   writeLines(inhalt, datei, useBytes = FALSE)
   invisible(datei)
+}
+
+# Rendern, Meldungen und Rueckgabe - fuer alle Briefarten gleich.
+# envir ist Pflicht: rmarkdown::render() wertet die Chunks in dieser Umgebung
+# aus, und darin liegt "daten" (die Abschnitte des Briefes).
+.brief_rendern <- function(rmd, datei, melde, was, envir = parent.frame()) {
+  melde(0.35, "Word-Datei wird geschrieben (pandoc) ...")
+  rmarkdown::render(rmd, output_file = datei, quiet = TRUE, envir = envir)
+  message(was, " gespeichert unter: ", datei)
+  melde(1, paste0(was, " fertig"))
+  invisible(datei)
+}
+
+# Kopf, Abschnitte und Abschluss zu EINEM Rmd zusammensetzen.
+# Die drei Dateien bleiben reine Inhalts-Fragmente (dort steht der Fliesstext,
+# editierbar); Kopfzeile/Format kommen aus der Vorlage.
+.infobrief_rmd_bauen <- function(vorlage, daten, datei) {
+  .brief_rmd_bauen(c(
+    .brief_setze_d("d <- daten$kopf"),
+    .brief_fragment(vorlage, "kopf"),
+    unlist(lapply(seq_along(daten$abschnitte), function(i) {
+      c(.brief_setze_d(paste0("d <- daten$abschnitte[[", i, "]]")),
+        .brief_fragment(vorlage, "abschnitt"))
+    })),
+    .brief_setze_d("d <- daten$abschluss"),
+    .brief_fragment(vorlage, "abschluss")
+  ), datei)
 }
 
 # Infobrief erstellen: Kopf + ein Abschnitt je Buchstabe + Abschluss in einem Lauf
@@ -664,12 +637,7 @@ create_infobrief <- function(cohort, klassenleitung = "", absender = "",
                              rueckgang = 10, top_prosa = 3, top = 3,
                              fortschritt = NULL, vergleich = NULL) {
   # fortschritt(anteil, text) meldet den Stand an die Oberflaeche (0 bis 1)
-  melde <- function(anteil, text) {
-    if (is.function(fortschritt)) {
-      fortschritt(max(0, min(1, anteil)), text)
-    }
-    invisible(NULL)
-  }
+  melde <- .fortschritt_melder(fortschritt)
 
   melde(0.05, "Daten werden zusammengestellt ...")
   bericht <- infobrief_bericht(cohort, rueckgang = rueckgang, top_prosa = top_prosa,
@@ -681,10 +649,8 @@ create_infobrief <- function(cohort, klassenleitung = "", absender = "",
 
   melde(0.2, "Vorlagen werden vorbereitet ...")
   ziel_ordner <- createFilePath(NULL, "")
-  vorlage <- infobrief_vorbereiten()
+  vorlage <- .brief_vorlage_bereit()
   on.exit(vorlagen_aufraeumen(vorlage), add = TRUE)
-  rest <- file.path(vorlage, "infobrief.knit.md")
-  if (fs::file_exists(rest)) fs::file_delete(rest)
 
   name <- paste0("Infobrief_", gsub("[^A-Za-z0-9]+", "", cohort$stufe_alt), "-",
                  gsub("[^A-Za-z0-9]+", "", cohort$stufe_neu), "_",
@@ -700,7 +666,7 @@ create_infobrief <- function(cohort, klassenleitung = "", absender = "",
   # Anrede automatisch aus den Klassen des Briefes; wer es anders braucht,
   # uebergibt klassenleitung ausdruecklich (die Oberflaeche tut das nicht mehr).
   kopf$anrede <- infobrief_anrede(if (!is.null(klassenleitung) &&
-                                      nzchar(trimws(klassenleitung))) {
+                                      !.ist_leer(klassenleitung)) {
     klassenleitung
   } else {
     klassen_fuer_anrede(cohort)
@@ -714,10 +680,8 @@ create_infobrief <- function(cohort, klassenleitung = "", absender = "",
                                  lesetabelle = bericht$lesetabelle))
 
   rmd <- .infobrief_rmd_bauen(vorlage, daten, file.path(vorlage, "infobrief_gesamt.Rmd"))
-  melde(0.35, "Word-Datei wird geschrieben (pandoc) ...")
-  rmarkdown::render(rmd, output_file = datei, quiet = TRUE)
-  message("Infobrief gespeichert unter: ", datei)
-  melde(1, "Infobrief fertig")
+  # environment() = dieser Frame: darin liegt "daten" fuer die Rmd-Chunks
+  .brief_rendern(rmd, datei, melde, "Infobrief", envir = environment())
 
   list(datei = datei, bericht = bericht)
 }
@@ -814,21 +778,17 @@ stand_statistik <- function(df) {
     stringsAsFactors = FALSE)
 
   # bei fehlenden Werten "-" statt "NA"; eine Gruppe ohne Werte ergibt NA
-  kennzahl <- function(x, f) {
-    if (length(x) == 0 || all(is.na(x))) return(NA_real_)
-    round(f(x, na.rm = TRUE), 1)
-  }
-
+  # (Rechen- und Rundungsregeln stehen in .kennzahlen(), functions.R)
   zeilen <- lapply(sort(unique(daten$Klasse)), function(k) {
     teil <- daten[daten$Klasse == k, , drop = FALSE]
+    we <- .kennzahlen(teil$WE)
+    rf <- .kennzahlen(teil$RF)
     data.frame(
       Stufe = .stufe_aus_klasse(k), Klasse = k,
       n = nrow(teil),
       n_werte = sum(!is.na(teil$WE) | !is.na(teil$RF)),
-      mittel_WE = kennzahl(teil$WE, mean), median_WE = kennzahl(teil$WE, stats::median),
-      sd_WE = kennzahl(teil$WE, stats::sd),
-      mittel_RF = kennzahl(teil$RF, mean), median_RF = kennzahl(teil$RF, stats::median),
-      sd_RF = kennzahl(teil$RF, stats::sd),
+      mittel_WE = we$mittel, median_WE = we$median, sd_WE = we$sd,
+      mittel_RF = rf$mittel, median_RF = rf$median, sd_RF = rf$sd,
       stringsAsFactors = FALSE)
   })
 
@@ -940,13 +900,15 @@ stand_abschnitt <- function(df, klasse, grenze = .normgrenze("R/F"),
   )
 }
 
-# Satz zur Innenansicht eines Klassenabschnitts (Median gegen die
-# Vergleichswerte der Schule). NULL, wenn nichts zu vergleichen ist.
+# Saetze zur Innenansicht eines Klassenabschnitts (Median gegen die
+# Vergleichswerte der Schule). Rueckgabe ist ein Vektor - je Kennzahl ein Satz
+# (Wortschatz zuerst, wie im Entwicklungsbrief), damit die Vorlage daraus eigene
+# Absaetze macht. NULL, wenn nichts zu vergleichen ist.
 .stand_vergleich_text <- function(vergleich, statistik, rf, we, klasse) {
   if (is.null(vergleich)) return(NULL)
   stufe <- .stufe_aus_klasse(klasse)
   texte <- character(0)
-  for (kennzahl in c("R/F", "WE")) {
+  for (kennzahl in c("WE", "R/F")) {
     lage <- if (kennzahl == "R/F") statistik$median_RF[1] else statistik$median_WE[1]
     n_k <- sum(!is.na(if (kennzahl == "R/F") rf else we))
     if (n_k < .vergleich_min_klasse_kinder) next
@@ -956,7 +918,7 @@ stand_abschnitt <- function(df, klasse, grenze = .normgrenze("R/F"),
     if (!is.null(urteil)) texte <- c(texte, vergleich_satz(urteil, kennzahl))
   }
   if (length(texte) == 0) return(NULL)
-  paste(texte, collapse = " ")
+  texte
 }
 
 # Alle Abschnitte des Stand-Briefs: eine je Klasse, in der Reihenfolge der
@@ -981,43 +943,20 @@ stand_bericht <- function(df, grenze = .normgrenze("R/F"), top = 3, unten = 3,
 # Kopf + ein Abschnitt je Klasse zu EINEM Rmd zusammensetzen (Muster wie beim
 # Entwicklungsbrief: ein Dokument, keine eingebetteten Teildokumente).
 .standbrief_rmd_bauen <- function(vorlage, daten, datei) {
-  fragment <- function(name) readLines(file.path(vorlage, paste0(name, ".Rmd")),
-                                       warn = FALSE, encoding = "UTF-8")
-  setze_d <- function(ausdruck) c("```{r, echo=FALSE}", ausdruck, "```", "")
-
   teile <- unlist(lapply(seq_along(daten$abschnitte), function(i) {
     c(if (i > 1) c("", "\\newpage", ""),                 # je Klasse eine neue Seite
-      setze_d(paste0("d <- daten$abschnitte[[", i, "]]")),
-      fragment("stand"))
+      .brief_setze_d(paste0("d <- daten$abschnitte[[", i, "]]")),
+      .brief_fragment(vorlage, "stand"))
   }))
-
-  inhalt <- c(
-    "---",
-    "output: officedown::rdocx_document",
-    "---",
-    "",
-    "```{r setup, include=FALSE}",
-    "library(officer)",
-    "library(flextable)",
-    "knitr::opts_chunk$set(echo = FALSE)",
-    "```",
-    "",
-    teile
-  )
-  writeLines(inhalt, datei, useBytes = FALSE)
-  invisible(datei)
+  .brief_rmd_bauen(teile, datei)
 }
 
 # Stand-Brief erstellen: eine docx mit einer Seite je Klasse.
 create_standbrief <- function(df, absender = "", fortschritt = NULL,
                               grenze = .normgrenze("R/F"), top = 3, unten = 3,
                               vergleich = NULL) {
-  melde <- function(anteil, text) {
-    if (is.function(fortschritt)) {
-      fortschritt(max(0, min(1, anteil)), text)
-    }
-    invisible(NULL)
-  }
+  # fortschritt(anteil, text) meldet den Stand an die Oberflaeche (0 bis 1)
+  melde <- .fortschritt_melder(fortschritt)
 
   melde(0.05, "Daten werden zusammengestellt ...")
   bericht <- stand_bericht(df, grenze = grenze, top = top, unten = unten,
@@ -1029,10 +968,8 @@ create_standbrief <- function(df, absender = "", fortschritt = NULL,
 
   melde(0.2, "Vorlagen werden vorbereitet ...")
   ziel_ordner <- createFilePath(NULL, "")
-  vorlage <- infobrief_vorbereiten()
+  vorlage <- .brief_vorlage_bereit()
   on.exit(vorlagen_aufraeumen(vorlage), add = TRUE)
-  rest <- file.path(vorlage, "infobrief.knit.md")
-  if (fs::file_exists(rest)) fs::file_delete(rest)
 
   # eine Datei fuer alle Klassen; der Absender steht in jedem Klassenschreiben
   abschnitte <- lapply(bericht$abschnitte, function(a) {
@@ -1047,15 +984,13 @@ create_standbrief <- function(df, absender = "", fortschritt = NULL,
   # statt erst nach dem Rendern zu scheitern
   .pruefe_datei_frei(datei)
 
-  # rmarkdown::render() wertet das Rmd im Frame von create_standbrief() aus -
-  # der Name "daten" ist deshalb Pflicht (wie bei .infobrief_rmd_bauen)
+  # die Rmd-Chunks lesen "daten"; der Name ist deshalb Pflicht (wie beim
+  # Entwicklungsbrief)
   daten <- list(abschnitte = abschnitte)
   rmd <- .standbrief_rmd_bauen(vorlage, daten,
                                file.path(vorlage, "standbrief_gesamt.Rmd"))
-  melde(0.35, "Word-Datei wird geschrieben (pandoc) ...")
-  rmarkdown::render(rmd, output_file = datei, quiet = TRUE)
-  message("Stand-Brief gespeichert unter: ", datei)
-  melde(1, "Stand-Brief fertig")
+  # environment() = dieser Frame, in dem "daten" liegt
+  .brief_rendern(rmd, datei, melde, "Stand-Brief", envir = environment())
 
   list(datei = datei, bericht = bericht)
 }

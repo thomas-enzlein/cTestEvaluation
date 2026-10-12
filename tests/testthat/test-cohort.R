@@ -192,9 +192,9 @@ test_that("die Hinweis-Spalte gibt es nur in der Nachschlageliste", {
 
   expect_false("Hinweis" %in% colnames(cohort_tabelle(g, mit_klasse = FALSE)))
   expect_true("Hinweis" %in% colnames(cohort_tabelle(g, mit_hinweis = TRUE)))
-  # die Ranglisten des Infobriefs behalten ihre fuenf Spalten (ohne Hinweis)
-  r <- cohort_ranking(k, top = 3)
-  expect_equal(ncol(cohort_tabelle(r$verbesserungen, mit_klasse = FALSE)), 5)
+  # die Rangliste des Infobriefs behaelt ihre fuenf Spalten (ohne Hinweis)
+  rang <- rangliste_eins(k, n = 3)$tabelle
+  expect_equal(ncol(rang), 5)
 })
 
 test_that("Kennzahlen nutzen nur die gematchte Gruppe", {
@@ -223,14 +223,6 @@ test_that("Kinder unter dem Referenzwert werden gruppiert", {
   expect_equal(ref$vorher_unter, sum(g$RF_Alt < 65, na.rm = TRUE))
   expect_equal(ref$unveraendert_kritisch + ref$neu_kritisch +
                  ref$nicht_mehr_kritisch + ref$nie_kritisch, ref$n)
-})
-
-test_that("Verbesserungen und Rueckgaenge werden sortiert", {
-  r <- cohort_ranking(kohorte_fixture(), top = 3, rueckgang = 10)
-
-  expect_true(all(diff(r$verbesserungen$dRF) <= 0))
-  expect_true(all(r$rueckgaenge$dRF <= -10))
-  expect_true("Aydin, Sara" %in% r$rueckgaenge$Name_Alt)
 })
 
 test_that("der Dateiname der Zuordnungsdatei kommt aus den Daten", {

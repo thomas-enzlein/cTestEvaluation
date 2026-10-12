@@ -1,14 +1,15 @@
 setDocBackgroundColor <- function(tab, df, colors, levels) {
   
   stopifnot(length(colors) == length(levels))
-  # ohne Kategorie-Spalte gibt es nichts zu faerben (kein Abbruch)
-  kat <- if ("Kat." %in% names(df)) pull(df, "Kat.") else rep(NA_character_, nrow(df))
+  # Kategorie-Spalte und Zeilen je Kategorie kommen aus formatierer.R
+  # (.kat_spalte/.kat_zeilen), damit Word und Excel dieselbe Zuordnung nutzen
+  kat <- .kat_spalte(df)
+  zeilen <- .kat_zeilen(kat, levels)
   for (i in seq_along(levels)) {
-    lvl <- levels[i]
-    idx <- which(kat == lvl)
+    if (length(zeilen[[i]]) == 0) next
     tab <- flextable::bg(x = tab, 
                          j = 7, # Kat. column
-                         i = idx, 
+                         i = zeilen[[i]], 
                          bg = colors[i])
   }
   return(tab)

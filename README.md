@@ -184,8 +184,8 @@ only adds `testthat` and `withr`.
 It covers the calculation core, the tsv round trip (including robust loading with different
 column names, item count and plausibility checks), Word/Excel export, parent letter and infobrief
 generation, app flows without a browser, write permissions, settings, templates, data backup,
-locked target files, offline behaviour and name resolution (package masking) - currently 169
-tests (about 1000 expectations).
+locked target files, offline behaviour and name resolution (package masking) - currently 215
+tests (about 1430 expectations).
 
 ## Project structure
 
@@ -193,9 +193,13 @@ tests (about 1000 expectations).
 app.R, ui.R, server.R, global.R   entry point, user interface, server logic
 components/                       header, sidebar, body (UI building blocks)
 functions/                        calculation core, cohort and name matching, letters, exports
+  utils.R                         technical helpers (checks, paths, files, UI building blocks)
+  formatierer.R                   presentation (numbers, names, colours, table look)
+  functions.R, cohort.R, infobrief.R, plot_functions.R, table2doc_.R, table2spreadsheet_.R
 elternbrief/                      templates and text of the parent letter (Rmd, docx, xlsx)
 infobrief/                        templates and text of the infobrief (Rmd, docx, yml)
 helpfiles/                        manual and help texts (including screenshots)
 tests/                            test suite (testthat) with fixtures
 build/                            build script, Inno Setup script, launcher, icon
+docs/                             architecture and conventions (German)
 ```

@@ -26,7 +26,9 @@ test_that("die UI baut sich auf und enthaelt alle zentralen Elemente", {
                "btVorlageOeffnen", "btVorlagenOrdner", "btEinstellungen",
                "vorlagenHinweis", "vorlageStatus",
                # Auswahl der Klassen fuer die Elternbriefe
-               "briefAuswahlUI")) {
+               "briefAuswahlUI",
+               # Liste der geladenen Dateien mit x (Sidebar)
+               "dateiListeUI")) {
     expect_match(html, paste0('id="', id, '"'), fixed = TRUE)
   }
   # die Anrede wird automatisch gebildet - ein Feld fuer die Klassenleitung

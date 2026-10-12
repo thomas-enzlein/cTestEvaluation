@@ -16,18 +16,27 @@ server <- function(input, output, session) {
               theme(panel.grid = element_blank()))
   
   #### App-Object ####
-  rv <- reactiveValues(df = tibble("Name" = character(0),
-                                   "Klasse" = character(0),
-                                   "WE-Wert" = numeric(0),
-                                   "WE-%" = numeric(0),
-                                   "R/F-Wert" = numeric(0),
-                                   "R/F-%" = numeric(0),
-                                   "Kat." = factor(character(0), 
-                                                   levels = lvls),
-                                   "Empfehlung" = character(0),
-                                   # Itemzahl je Kind: nur intern und in der
-                                   # tsv, nicht in der Anzeige (siehe unten)
-                                   "Items" = numeric(0)),
+  # leere Tabelle: Startzustand und Ziel beim Schliessen aller Daten
+  # (daten_zuruecksetzen). Die Herkunftsspalte gehoert von Anfang an dazu -
+  # ein Nachtragen ausserhalb eines Reaktiv-Kontexts ist nicht erlaubt.
+  leere_daten <- function() {
+    tibble("Name" = character(0),
+           "Klasse" = character(0),
+           "WE-Wert" = numeric(0),
+           "WE-%" = numeric(0),
+           "R/F-Wert" = numeric(0),
+           "R/F-%" = numeric(0),
+           "Kat." = factor(character(0),
+                           levels = lvls),
+           "Empfehlung" = character(0),
+           # Itemzahl je Kind: nur intern und in der tsv, nicht in der Anzeige
+           "Items" = numeric(0),
+           # Herkunft jeder Zeile (intern): Schluessel der geladenen Datei oder
+           # "manuell" fuer Handeingaben - siehe datei_schliessen()
+           "Quelle" = character(0))
+  }
+
+  rv <- reactiveValues(df = leere_daten(),
                        numItems = 80,
                        inital = TRUE,
                        # Namen und Stufen der geladenen tsv-Dateien (fuer die
@@ -35,8 +44,18 @@ server <- function(input, output, session) {
                        # ob eine Stufe doppelt geladen wurde)
                        dateien = list(),
                        # manuelle Zuordnungs-Entscheidungen (Ja/Nein)
-                       entscheidungen = NULL
+                       entscheidungen = NULL,
+                       # laufende Nummer fuer den Schluessel je geladener Datei
+                       naechste_datei = 0
   )
+
+  #### Statuszeile ####
+  # EINE Ausgabe fuer alle Meldungen (Auswertungstab): die Handler schreiben
+  # nur noch in den reactiveVal. Vorher wurde output$text an jeder Meldestelle
+  # neu definiert - dieselbe Ausgabe also 13-mal.
+  status_text <- shiny::reactiveVal("")
+  zeige_meldung <- function(text) status_text(as.character(text))
+  output$text <- renderText(status_text())
 
   #### Einstellungen ####
   # Gespeicherte Werte beim Start in die Felder setzen; danach wird jede
@@ -109,7 +128,7 @@ server <- function(input, output, session) {
   # erscheinen bzw. verschwinden
   observeEvent(list(rv$df, vergleich_aktiv()), {
     # Itemzahl nicht anzeigen: sie gehoert in die tsv, nicht in die Ansicht
-    anzeige <- rv$df[, setdiff(colnames(rv$df), "Items"), drop = FALSE]
+    anzeige <- rv$df[, setdiff(colnames(rv$df), c("Items", .quelle_spalte)), drop = FALSE]
     # Innenansicht je Kind (nur Anzeige, nur mit eingeschaltetem Schalter)
     if (vergleich_aktiv()) {
       spalten <- tryCatch(vergleich_spalten(rv$df, vergleich_ref()),
@@ -140,7 +159,7 @@ server <- function(input, output, session) {
     if(!is.null(error)) {
       cat(paste("Fehler:", error, "\n"))
       errText <- paste("Fehler:", error, "\n")
-      output$text <- renderText(errText)
+      zeige_meldung(errText)
       showNotification(errText, type = "error")
       return()
     }
@@ -151,7 +170,11 @@ server <- function(input, output, session) {
                       rf = input$rfWert, 
                       we = input$weWert, 
                       numItems = rv$numItems)
-    
+
+    # von Hand eingegebene Zeilen gehoeren zu keiner Datei
+    neu_ohne_quelle <- is.na(rv$df[[.quelle_spalte]])
+    rv$df[[.quelle_spalte]][neu_ohne_quelle] <- "manuell"
+
     if(rv$inital) {
       # erster schueler hinzugefügt
       rv$inital <- FALSE
@@ -161,7 +184,7 @@ server <- function(input, output, session) {
     updateTextInput(inputId = "schuelerName", value = "")
     updateNumericInput(inputId = "rfWert", value = NA)
     updateNumericInput(inputId = "weWert", value = NA)
-    output$text <-  renderText("")
+    zeige_meldung("")
     
     # refocus auf Namensfeld
     # Bewusst runjs() statt js$refocus(): das Objekt `js` liegt auf dem
@@ -214,7 +237,7 @@ server <- function(input, output, session) {
     if(!ergebnis$ok) {
       msgs <- paste0("Fehler beim Speichern: ", ergebnis$wert)
       showNotification(msgs, type = "error", duration = NULL)
-      output$text <- renderText(msgs)
+      zeige_meldung(msgs)
       message(msgs)
       return()
     }
@@ -222,7 +245,7 @@ server <- function(input, output, session) {
     msgs <- ergebnis$wert
     showNotification(msgs)
 
-    output$text <-  renderText(msgs)
+    zeige_meldung(msgs)
     utils::browseURL(createFilePath(NULL, ""))
   })
   
@@ -237,7 +260,7 @@ server <- function(input, output, session) {
     if(!ergebnis$ok) {
       msgs <- paste0("Datei konnte nicht geladen werden: ", ergebnis$wert)
       showNotification(msgs, type = "error", duration = NULL)
-      output$text <- renderText(msgs)
+      zeige_meldung(msgs)
       message(msgs)
       return()
     }
@@ -249,7 +272,7 @@ server <- function(input, output, session) {
     hinweise <- lade_hinweise(new_df)
     if(length(hinweise) > 0) {
       showNotification(paste(hinweise, collapse = "\n"), type = "warning", duration = 12)
-      output$text <- renderText(paste(hinweise, collapse = " "))
+      zeige_meldung(paste(hinweise, collapse = " "))
       message(paste(hinweise, collapse = " | "))
     }
 
@@ -257,18 +280,34 @@ server <- function(input, output, session) {
       msgs <- paste0("Fehler, Spaltennamen stimmen nicht in ", 
                      checkInputFile(input$input_tsv), "\n")
       showNotification(msgs, type = "error")
-      output$text <-  renderText(msgs)
+      zeige_meldung(msgs)
       message(msgs)
       return()
     }
     
-    # geladene Datei merken: Name und enthaltene Stufen (fuer den Infobrief)
+    # Schluessel dieser Ladung: bleibt stabil, auch wenn andere Dateien
+    # geschlossen werden (die x-Knoepfe der Liste haengen daran)
+    rv$naechste_datei <- rv$naechste_datei + 1
+    schluessel <- paste0("d", rv$naechste_datei)
+    new_df[[.quelle_spalte]] <- schluessel
+
+    # geladene Datei merken: Schluessel, Name und enthaltene Klassen/Stufen
     rv$dateien[[length(rv$dateien) + 1]] <- list(
+      schluessel = schluessel,
       name = input$input_tsv$name,
       klassen = as.character(unique(new_df$Klasse)),
       # Stufenzahlen der enthaltenen Klassen (z. B. 5 fuer "5c")
       stufen = sort(unique(stats::na.omit(suppressWarnings(
         as.numeric(gsub("[^0-9]", "", as.character(unique(new_df$Klasse)))))))))
+
+    # Klick auf das x dieser Datei: der Schluessel entsteht hier, also wird
+    # der Beobachter hier registriert (einer je geladener Datei).
+    local({
+      k <- schluessel
+      observeEvent(input[[paste0("btDateiSchliessen_", k)]], {
+        datei_schliessen(k)
+      }, ignoreInit = TRUE)
+    })
     
     if(rv$inital) {
       # wenn noch keine Daten eingegeben wurden benutze die neuen Daten
@@ -283,7 +322,107 @@ server <- function(input, output, session) {
     rv$df <- 
       rv$df %>%
       bind_rows(new_df)
+
+    # Doppelt geladene Klassen: die Kinder zaehlen dann zweimal. Nicht
+    # sperren (eine Stufe darf auf mehrere Dateien verteilt sein), aber
+    # deutlich warnen - der Weg heraus ist das × in der Dateiliste.
+    doppelt <- klassen_doppelt()
+    if (length(doppelt) > 0) {
+      anzahl <- kinder_doppelt(rv$df)
+      warnung <- paste0("Achtung: die Klasse ", paste(doppelt, collapse = ", "),
+                        " ist jetzt aus zwei Dateien geladen",
+                        if (anzahl > 0) paste0(" - ", anzahl, " Kinder zählen doppelt")
+                        else "",
+                        ". Bitte eine Datei in der Liste 'Geladene Dateien' ",
+                        "über das × schließen.")
+      showNotification(warnung, type = "warning", duration = 15)
+      message(warnung)
+    }
   })
+
+  #### Geladene Dateien schliessen #####
+  # Liste in der Sidebar: je Datei ein Kuerzel mit x, ab zwei Dateien zusaetzlich
+  # "Alle schliessen". Beides erscheint nur, wenn etwas geladen ist - sonst
+  # bleibt die Sidebar so leer wie vorher.
+
+  # Ausgangszustand: leere Tabelle (Spalten bleiben), keine Dateien - wie nach
+  # dem Start der App
+  daten_zuruecksetzen <- function() {
+    rv$df <- rv$df[0, , drop = FALSE]
+    rv$dateien <- list()
+    rv$inital <- TRUE
+    invisible(TRUE)
+  }
+
+  # eine Datei schliessen: nur ihre Zeilen; Handeingaben bleiben stehen
+  datei_schliessen <- function(schluessel) {
+    eintrag <- Filter(function(d) identical(d$schluessel, schluessel), rv$dateien)
+    if (length(eintrag) == 0) return(invisible(FALSE))
+
+    behalten <- is.na(rv$df[[.quelle_spalte]]) | rv$df[[.quelle_spalte]] != schluessel
+    rv$df <- rv$df[behalten, , drop = FALSE]
+    rv$dateien <- Filter(function(d) !identical(d$schluessel, schluessel), rv$dateien)
+
+    if (nrow(rv$df) == 0) {
+      daten_zuruecksetzen()
+      zeige_meldung("Alle Daten geschlossen.")
+      return(invisible(TRUE))
+    }
+
+    anzeige <- beschriftung_datei(eintrag[[1]]$klassen, eintrag[[1]]$name)
+    zeige_meldung(paste0("Datei ", anzeige, " geschlossen - ", length(rv$dateien),
+                         if (length(rv$dateien) == 1) " Datei bleibt geladen."
+                         else " Dateien bleiben geladen."))
+    invisible(TRUE)
+  }
+
+  output$dateiListeUI <- renderUI({
+    if (length(rv$dateien) == 0) return(NULL)
+
+    zeilen <- lapply(rv$dateien, function(d) {
+      div(style = "display: flex; align-items: center; justify-content: space-between;",
+          span(datei_kuerzel(d$klassen, d$name),
+               title = beschriftung_datei(d$klassen, d$name)),
+          actionLink(paste0("btDateiSchliessen_", d$schluessel),
+                     label = icon("xmark"), title = "Datei schließen"))
+    })
+
+    tagList(
+      div(style = "padding: 4px 15px 2px 15px;", strong("Geladene Dateien")),
+      div(style = "padding: 0 15px;", zeilen),
+      if (length(rv$dateien) >= 2) {
+        div(style = "padding: 4px 15px 0 15px;",
+            actionLink("btAlleSchliessen", "Alle schließen"))
+      }
+    )
+  })
+
+  # "Alle schliessen" fragt nach; "Vorher sichern" nur bei Aenderungen
+  observeEvent(input$btAlleSchliessen, {
+    showModal(.schliessen_dialog(stand_geaendert(rv$df)))
+  })
+
+  observeEvent(input$btSchliessenNur, {
+    removeModal()
+    daten_zuruecksetzen()
+    zeige_meldung("Alle Daten geschlossen.")
+  })
+
+  observeEvent(input$btSchliessenSichern, {
+    sicherung <- tryCatch(sichere_daten(rv$df),
+                          error = function(e) list(geschrieben = FALSE,
+                                                   meldung = conditionMessage(e)))
+    if (!isTRUE(sicherung$geschrieben)) {
+      # Dialog bleibt offen, damit "Nur schließen" noch moeglich ist
+      showNotification(paste0("Sichern nicht möglich: ", sicherung$meldung),
+                       type = "error", duration = NULL)
+      return()
+    }
+    removeModal()
+    daten_zuruecksetzen()
+    zeige_meldung(paste0(sicherung$meldung, " - alle Daten geschlossen."))
+  })
+
   
   #### Elternbrief #####
 
@@ -291,15 +430,16 @@ server <- function(input, output, session) {
   # einzelne Klasse. Vorausgewaehlt ist die hoechste Klasse - aber nur, wenn sich
   # der Bestand der Klassen aendert. Eine eigene Wahl bleibt sonst stehen, damit
   # eine Korrektur an den Daten die Auswahl nicht unbemerkt zuruecksetzt.
-  brief_klassen_zuletzt <- NULL
+  # letzter Klassenbestand als reactiveVal (Shiny-Idiom statt <<-)
+  brief_klassen_zuletzt <- reactiveVal(NULL)
 
   output$briefAuswahlUI <- renderUI({
     klassen <- brief_klassen(rv$df)
     if (length(klassen) == 0) return(helpText("Noch keine Daten geladen."))
 
     gewaehlt <- shiny::isolate(input$briefKlassen)
-    if (!identical(klassen, brief_klassen_zuletzt)) {
-      brief_klassen_zuletzt <<- klassen
+    if (!identical(klassen, brief_klassen_zuletzt())) {
+      brief_klassen_zuletzt(klassen)
       gewaehlt <- brief_vorauswahl(klassen)
     }
     auswahl <- brief_auswahl_liste(klassen)
@@ -363,7 +503,7 @@ server <- function(input, output, session) {
     if(!ergebnis$ok) {
       msgs <- paste0("Fehler beim Erstellen der Elternbriefe: ", ergebnis$wert)
       showNotification(msgs, type = "error", duration = NULL)
-      output$text <- renderText(msgs)
+      zeige_meldung(msgs)
       message(msgs)
       return()
     }
@@ -382,7 +522,7 @@ server <- function(input, output, session) {
     } else {
       showNotification(msgs, duration = 5)
     }
-    output$text <- renderText(msgs)
+    zeige_meldung(msgs)
     
     utils::browseURL(createFilePath(NULL, ""))
   })
@@ -450,7 +590,7 @@ server <- function(input, output, session) {
     if (!ergebnis$ok) {
       msgs <- paste0("Öffnen fehlgeschlagen: ", ergebnis$wert)
       showNotification(msgs, type = "error", duration = NULL)
-      output$text <- renderText(msgs)
+      zeige_meldung(msgs)
       message(msgs)
       return()
     }
@@ -463,7 +603,7 @@ server <- function(input, output, session) {
                           einstellungen = "Einstellungen geöffnet: "),
                    ergebnis$pfad)
     showNotification(msgs, duration = 6)
-    output$text <- renderText(msgs)
+    zeige_meldung(msgs)
   }
 
   observeEvent(input$btVorlageOeffnen, {
@@ -489,23 +629,23 @@ server <- function(input, output, session) {
     sort(unique(stufen[!is.na(stufen)]))
   })
 
-  # dieselbe Stufe aus zwei Dateien: kein eindeutiger Vergleich moeglich
-  doppelte_stufen <- reactive({
-    if(length(rv$dateien) == 0) return(numeric(0))
-    alle <- unlist(lapply(rv$dateien, function(d) d$stufen), use.names = FALSE)
-    alle <- alle[!is.na(alle)]
-    unique(alle[duplicated(alle)])
+  # Klassen, die in zwei geladenen Dateien liegen: dann zaehlen die Kinder
+  # doppelt. Eine STUFE darf dagegen auf mehrere Dateien verteilt sein
+  # (z. B. 5a-5b in einer Datei, 5c-5e in einer anderen) - das ist erlaubt
+  # und wird nur gewarnt, nicht gesperrt.
+  klassen_doppelt <- reactive({
+    klassen_mit_doppelten_kindern(rv$df, doppelte_klassen(rv$dateien))
   })
 
   auswahl_moeglich <- reactive({
-    length(stufen_verfuegbar()) >= 2 && length(doppelte_stufen()) == 0
+    length(stufen_verfuegbar()) >= 2
   })
 
   # Auswahl fuellen, sperren wenn nicht moeglich, und erklaeren warum
   observeEvent(list(rv$df, rv$dateien), {
     stufen <- stufen_verfuegbar()
 
-    if(length(stufen) < 2 || length(doppelte_stufen()) > 0) {
+    if(length(stufen) < 2) {
       shinyjs::disable("siStufeAlt")
       shinyjs::disable("siStufeNeu")
       updateSelectInput(session, "siStufeAlt", choices = character(0))
@@ -549,10 +689,12 @@ server <- function(input, output, session) {
   # Stufenpaar ebenfalls.
   output$vergleichHinweis <- renderUI({
     if(rv$inital) return(NULL)
-    if(length(doppelte_stufen()) > 0) {
-      return(helpText(paste0("Die Stufe ", paste(doppelte_stufen(), collapse = ", "),
-                             " liegt in zwei geladenen Dateien. Bitte je Stufe nur eine ",
-                             "Datei laden, damit der Vergleich eindeutig ist.")))
+    if(length(klassen_doppelt()) > 0) {
+      return(helpText(paste0("Die Klasse ", paste(klassen_doppelt(), collapse = ", "),
+                             " steht in zwei geladenen Dateien (",
+                             kinder_doppelt(rv$df), " Kinder zählen doppelt). ",
+                             "Bitte eine davon in der Liste 'Geladene Dateien' ",
+                             "über das × schließen.")))
     }
     if(length(stufen_verfuegbar()) < 2) {
       return(helpText(paste0("Für den Vergleich bitte eine zweite tsv-Datei mit einem ",
@@ -698,10 +840,16 @@ server <- function(input, output, session) {
       showNotification("Für die markierten Zeilen gibt es kein Paar.", type = "error")
       return()
     }
-    quelle <- function(stufe) {
-      treffer <- Filter(function(d) as.character(stufe) %in% as.character(d$stufen),
-                        rv$dateien)
-      if(length(treffer) == 0) NA_character_ else treffer[[1]]$name
+    # Quelldatei eines Kindes: steht in der Herkunftsspalte (seit dem Laden
+    # jeder Datei bekannt). Handeingaben haben keine Datei.
+    quelle_von <- function(name, klasse) {
+      idx <- which(as.character(rv$df$Name) == as.character(name) &
+                     as.character(rv$df$Klasse) == as.character(klasse))
+      if (length(idx) == 0) return(NA_character_)
+      schluessel <- rv$df[[.quelle_spalte]][idx[1]]
+      if (is.na(schluessel) || identical(schluessel, "manuell")) return(NA_character_)
+      treffer <- Filter(function(d) identical(d$schluessel, schluessel), rv$dateien)
+      if (length(treffer) == 0) NA_character_ else treffer[[1]]$name
     }
     for(i in seq_len(nrow(p))) {
       rv$entscheidungen <- setze_entscheidung(
@@ -709,7 +857,8 @@ server <- function(input, output, session) {
         name_alt = p$Name_Alt[i], klasse_alt = p$Klasse_Alt[i],
         name_neu = p$Name_Neu[i], klasse_neu = p$Klasse_Neu[i],
         aktion = aktion, aehnlichkeit = p$Aehnlichkeit[i],
-        quelle_alt = quelle(k$stufe_alt), quelle_neu = quelle(k$stufe_neu),
+        quelle_alt = quelle_von(p$Name_Alt[i], p$Klasse_Alt[i]),
+        quelle_neu = quelle_von(p$Name_Neu[i], p$Klasse_Neu[i]),
         kohorte = kohorte_pruefsumme(k))
     }
     showNotification(paste0(nrow(p), " Zuordnung(en) ",
@@ -773,7 +922,8 @@ server <- function(input, output, session) {
   # Vorausgewaehlt ist jeweils die hoechste geladene Klasse (bzw. ihre Kohorte).
   # Eine eigene Wahl bleibt stehen, solange Klassenbestand und Briefart gleich
   # bleiben.
-  info_auswahl_stand <- NULL
+  # letzte Lage (Briefart + Klassen) als reactiveVal statt <<-
+  info_auswahl_stand <- reactiveVal(NULL)
 
   output$infoAuswahlUI <- renderUI({
     klassen <- brief_klassen(rv$df)
@@ -783,8 +933,8 @@ server <- function(input, output, session) {
     lage <- list(art = if (entwicklung) "entwicklung" else "stand", klassen = klassen)
 
     gewaehlt <- shiny::isolate(input$infoKlassen)
-    if (!identical(lage, info_auswahl_stand)) {
-      info_auswahl_stand <<- lage
+    if (!identical(lage, info_auswahl_stand())) {
+      info_auswahl_stand(lage)
       gewaehlt <- NULL          # neue Lage: neu vorauswaehlen
     }
 
@@ -930,7 +1080,7 @@ server <- function(input, output, session) {
   # Meldung an die Oberflaeche: Hinweisblase und Text im Ausgabebereich
   melde_hinweis <- function(msgs) {
     showNotification(msgs, type = "error", duration = NULL)
-    output$text <- renderText(msgs)
+    zeige_meldung(msgs)
     message(msgs)
     invisible(NULL)
   }
@@ -943,7 +1093,7 @@ server <- function(input, output, session) {
       msgs <- paste0(msgs, "\n", ergebnis$sicherung$meldung)
     }
     showNotification(msgs, duration = 5)
-    output$text <- renderText(msgs)
+    zeige_meldung(msgs)
     utils::browseURL(createFilePath(NULL, ""))
     invisible(NULL)
   }
@@ -1035,8 +1185,8 @@ server <- function(input, output, session) {
       entwicklung <- tryCatch(
         vergleich_entwicklung_zeilen(gematcht_oder_null(), ref, kennzahl,
                                      pro_kohorte = !isTRUE(input$cbAllCombined)),
-        error = function(e) character(0))
-      if(length(zeilen) == 0 && length(entwicklung) == 0) return(NULL)
+        error = function(e) NULL)
+      if(length(zeilen) == 0 && is.null(entwicklung)) return(NULL)
       tagList(
         if(length(zeilen) > 0) div(
           h4(paste0("Vergleich mit den ", kennzahl, "-Werten der Klassen dieser Schule")),
@@ -1044,9 +1194,12 @@ server <- function(input, output, session) {
         if(length(zeilen) > 0)
           div(lapply(zeilen, function(z) div(z, style = "margin-left:15px")),
               style = "margin-right:15px"),
-        if(length(entwicklung) > 0)
-          div(lapply(entwicklung, function(z) div(z, style = "margin-left:15px")),
-              style = "margin-right:15px; margin-top:6px; margin-bottom:10px")
+        if(!is.null(entwicklung)) tagList(
+          div(entwicklung$titel,
+              style = "margin-left:15px; margin-right:15px; margin-top:8px"),
+          div(lapply(entwicklung$zeilen, function(z) div(z)),
+              style = "margin-left:28px; margin-right:15px; margin-bottom:10px")
+        )
       )
     }
     output$vergleichKlasse <- renderUI(vergleich_block("R/F"))

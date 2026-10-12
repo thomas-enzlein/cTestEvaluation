@@ -23,25 +23,6 @@ test_that("Zahlen werden im deutschen Format ausgegeben", {
   expect_equal(kind_dativ(3), "3 Kindern")
 })
 
-test_that("Werte werden gruen bzw. rot und ab 20 zusaetzlich fett gesetzt", {
-  gruen <- wert_run(22.5)
-  expect_equal(gruen$pr$color, "#1E7B34")
-  expect_true(gruen$pr$bold)
-  expect_match(gruen$value, "^\\+22,5", perl = TRUE)
-
-  rot <- wert_run(-30)
-  expect_equal(rot$pr$color, "#B00020")
-  expect_true(rot$pr$bold)
-
-  schwach <- wert_run(-5)
-  expect_equal(schwach$pr$color, "#B00020")
-  expect_false(schwach$pr$bold)
-
-  knapp <- wert_run(20)          # ab 20 wird fett
-  expect_true(knapp$pr$bold)
-  expect_match(knapp$value, "%$")
-})
-
 test_that("die Anrede ist neutral und optional an die Klassenleitung gerichtet", {
   expect_equal(infobrief_anrede(""), "Liebe Kollegin, lieber Kollege,")
   expect_equal(infobrief_anrede(NULL), "Liebe Kollegin, lieber Kollege,")
@@ -138,29 +119,6 @@ test_that("Top-Verbesserungen und schwaechste Entwicklung werden aufbereitet", {
                fixed = TRUE)
 })
 
-test_that("die schwaechsten zuerst: weiterhin unter dem Normbereich, dann Rueckgaenge", {
-  cohort <- infobrief_fixture()
-  rang <- cohort_rangliste(cohort, top = 0, schwach = 10)
-  schwach <- rang$schwach
-
-  g <- cohort_gematcht(cohort)
-  aktuell <- schwach[["R/F % (5 \u2192 6)"]]
-  aktuell <- suppressWarnings(as.numeric(gsub(",", ".",
-                                              sub(".*\u2192 ", "", aktuell))))
-  unter <- schwach$Name[aktuell < 65]
-  ueber <- schwach$Name[aktuell >= 65]
-  # alle Kinder unter dem Normbereich stehen vor allen ueber dem Normbereich
-  if (length(unter) > 0 && length(ueber) > 0) {
-    expect_lt(max(match(unter, schwach$Name)), min(match(ueber, schwach$Name)))
-  }
-  # innerhalb der Gruppe unter dem Normbereich zuerst "schon im Vorjahr betroffen"
-  beide <- intersect(unter, g$Name_Neu[!is.na(g$RF_Alt) & g$RF_Alt < 65])
-  nur_jetzt <- setdiff(unter, beide)
-  if (length(beide) > 0 && length(nur_jetzt) > 0) {
-    expect_lt(max(match(beide, schwach$Name)), min(match(nur_jetzt, schwach$Name)))
-  }
-})
-
 test_that("die Lesetabelle zeigt alle Kinder mit ihren vorhandenen Werten", {
   k <- infobrief_fixture()
   # so steht sie im Anhang: ohne Hinweisspalte (die Seite ist zu schmal)
@@ -236,6 +194,11 @@ test_that("die Klassentabelle endet mit einer farbigen Differenzzeile", {
                as.character(erwartete_farbe(differenz[["we"]])))
   expect_equal(as.character(farben[nrow(tab), spalte_rf]),
                as.character(erwartete_farbe(differenz[["rf"]])))
+  # ab 20 Punkten zusaetzlich fett (Regel aus wert_run, jetzt in der Tabelle)
+  ft_gross <- tabelle_a(tab, c(we = 22.5, rf = -5))
+  fett <- ft_gross$body$styles$text$bold$data
+  expect_true(as.logical(fett[nrow(tab), spalte_we]))
+  expect_false(as.logical(fett[nrow(tab), spalte_rf]))
   # die Klassenzeilen darueber bleiben ungefaerbt
   expect_false(identical(as.character(farben[1, spalte_we]),
                          as.character(erwartete_farbe(differenz[["we"]]))))
@@ -390,6 +353,17 @@ test_that("ein echter Infobrief entsteht als docx mit Tabellen und Farben", {
     expect_match(text, "die Entwicklung liegt", fixed = TRUE)
     expect_lt(regexpr("(WE)", text, fixed = TRUE)[1],
               regexpr("(R/F)", text, fixed = TRUE)[1])
+
+    # jede Kennzahl steht in einem eigenen Word-Absatz (kein Absatz enthaelt beide)
+    absaetze_mit <- function(xml, muster) {
+      bloecke <- regmatches(xml, gregexpr("<w:p[ >].*?</w:p>", xml, perl = TRUE))[[1]]
+      which(grepl(muster, bloecke, fixed = TRUE))
+    }
+    p_we <- absaetze_mit(geholt$xml, "(WE)")
+    p_rf <- absaetze_mit(geholt$xml, "(R/F)")
+    expect_gt(length(p_we), 0)
+    expect_gt(length(p_rf), 0)
+    expect_length(intersect(p_we, p_rf), 0)
 
     # der Hinweisblock gehoert nicht mehr in den Brief
     expect_false(grepl("Hinweise", text, fixed = TRUE))
